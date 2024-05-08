@@ -49,6 +49,7 @@ frontend/lib/src/proto.d.ts
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 .venv
+*.txt.metadata.json
 ########################################################################
 # node - https://github.com/github/gitignore/blob/master/Node.gitignore
 ########################################################################
