@@ -1,0 +1,235 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "CloudFormationGenerationAPI",
+      "description": "API for receiving architecture explanations to generate, validate and reiterate associated AWS CloudFormation templates.",
+      "version": "1.0.0"
+    },
+    "paths": {
+      "/generateCloudFormation": {
+        "get": {
+          "description": "Receive architecture explanation from user and return generated AWS CloudFormation template",
+          "parameters": [
+            {
+              "name": "architectureExplanation",
+              "in": "query",
+              "required": true,
+              "description": "Architecture explanation provided by the user",
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "cloudformationTemplate": {
+                        "type": "string",
+                        "description": "AWS CloudFormation template generated based on the architecture explanation"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+                "description": "Bad request. One or more required fields are missing or invalid."
+            }
+          }
+        }
+      },
+      "/validateCloudFormation": {
+        "get": {
+          "description": "Validate AWS CloudFormation template",
+          "parameters": [
+            {
+              "name": "cloudformationTemplate",
+              "in": "query",
+              "required": true,
+              "description": "Current AWS CloudFormation template to be validated",
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "isValid": {
+                        "type": "boolean",
+                        "description": "Indicates whether the AWS CloudFormation template is valid or not"
+                      },
+                      "error": {
+                        "type": "string",
+                        "description": "Error message if the AWS CloudFormation template is invalid"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+                "description": "Bad request. One or more required fields are missing or invalid."
+            }
+          }
+        }
+      },
+      "/reiterateCloudFormation": {
+        "get": {
+          "description": "Iteratively refine the generated AWS CloudFormation template, incorporating AWS best practices, to produce an optimized version of the CloudFormation template.",
+          "parameters": [
+            {
+              "name": "cloudformationTemplate",
+              "in": "query",
+              "required": true,
+              "description": "Current AWS CloudFormation template to be reiterated",
+              "schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "architectureExplanation",
+              "in": "query",
+              "required": true,
+              "description": "Architecture explanation provided by the user",
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "updatedCloudformationTemplate": {
+                        "type": "string",
+                        "description": "Updated AWS CloudFormation template incorporating AWS best practices"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+                "description": "Bad request. One or more required fields are missing or invalid."
+            }
+          }
+        }
+      },
+      "/updateCloudFormation": {
+        "get": {
+          "description": "Update instruction provided by the user to change AWS CloudFormation template",
+          "parameters": [
+            {
+              "name": "cloudformationTemplate",
+              "in": "query",
+              "required": true,
+              "description": "Current AWS CloudFormation template to be updated",
+              "schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "updateInstruction",
+              "in": "query",
+              "required": true,
+              "description": "Update instruction provided by the user",
+              "schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "architectureExplanation",
+              "in": "query",
+              "required": true,
+              "description": "Architecture explanation provided by the user",
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "updatedCloudformationTemplate": {
+                        "type": "string",
+                        "description": "Updated AWS CloudFormation template after applying the update instruction"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+                "description": "Bad request. One or more required fields are missing or invalid."
+            }
+          }
+        }
+      },
+      "/resolveError": {
+        "get": {
+          "description": "Resolve error to generate a new AWS CloudFormation template",
+          "parameters": [
+            {
+              "name": "cloudformationTemplate",
+              "in": "query",
+              "required": true,
+              "description": "Current AWS CloudFormation template to be updated",
+              "schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "errorInstruction",
+              "in": "query",
+              "required": true,
+              "description": "Error instruction to update AWS CloudFormation template",
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "updatedCloudformationTemplate": {
+                        "type": "string",
+                        "description": "Updated AWS CloudFormation template"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+                "description": "Bad request. One or more required fields are missing or invalid."
+            }
+          }
+        }
+      }
+    }
+  }
