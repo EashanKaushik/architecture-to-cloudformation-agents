@@ -1,26 +1,44 @@
-# import sys
-# from pip._internal import main
+import sys
+from pip._internal import main
 
-# main(['install', '-I', '-q', 'pyyaml', '--target', '/tmp/', '--no-cache-dir', '--disable-pip-version-check'])
-# sys.path.insert(0,'/tmp/')
+main(
+    [
+        "install",
+        "-I",
+        "-q",
+        "boto3",
+        "--target",
+        "/tmp/",
+        "--no-cache-dir",
+        "--disable-pip-version-check",
+    ]
+)
+sys.path.insert(0, "/tmp/")
 
 import json
-from botocore.exceptions import EventStreamError
+from botocore.exceptions import ClientError
 from boto3.session import Session
 
 import random
 import time
 import os
-
-# import yaml
+import datetime
 
 bedrock = Session().client("bedrock-runtime")
 cfn = Session().client("cloudformation")
 bedrock_agent = Session().client("bedrock-agent-runtime")
+s3 = Session().client("s3")
+dynamodb = Session().client("dynamodb")
 
 KnowledgeBaseId = os.environ["KnowledgeBaseId"]
+EnvironmentName = os.environ["EnvironmentName"]
+
+table_name = f"CacheStorage-A2C-{EnvironmentName}"
 
 
+############################
+##### Invoke Bedrock ######
+##########################
 def invoke_model(modelId, system_prompt, messages):
 
     response = bedrock.invoke_model(
@@ -51,81 +69,137 @@ def backoff_mechanism(func, modelId, system_prompt, messages):
     while retries < MAX_RETRIES:
         try:
             return func(modelId, system_prompt, messages)
-        except EventStreamError as e:
+        except bedrock.exceptions.ThrottlingException as e:
             print(f"Retry {retries + 1}/{MAX_RETRIES}: {e}")
             time.sleep(delay + random.uniform(0, 1))  # Add a random jitter
             delay = min(delay * 2, MAX_DELAY)
             retries += 1
 
 
+#########################
+##### Cache and KB #####
+#######################
+def put_document(query, sessionId):
+    documents = retrieve_relevant_documents(query=query)
+    item = {
+        **{"sessionId": {"S": sessionId}},
+        **{f"document_{idx}": {"S": doc} for idx, doc in enumerate(documents)},
+        **{
+            "ttl": {
+                "N": str(
+                    int(
+                        (
+                            datetime.datetime.now() + datetime.timedelta(seconds=900)
+                        ).timestamp()
+                    )
+                )
+            },
+            "creationDate": {"N": str(int(datetime.datetime.now().timestamp()))},
+        },
+    }
+    try:
+        # Put the item into the table
+        response = dynamodb.put_item(TableName=table_name, Item=item)
+
+        print(f"Item added to table")
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            print(f"Conditional check failed for item")
+        else:
+            print(f"An error occurred: {e}")
+
+    return documents
+
+
+def cache_documents(query, sessionId):
+    documents = list()
+    try:
+        response = dynamodb.get_item(
+            TableName=table_name,
+            Key={
+                "sessionId": {"S": sessionId},
+            },
+        )
+
+        # Check if the item was found
+        if "Item" in response:
+            print(f"Item with key {sessionId} exists in the table.")
+            documents = [
+                v["S"]
+                for k, v in response["Item"].items()
+                if k != "sessionId" and k != "ttl" and k != "creationDate"
+            ]
+        else:
+            print(f"Item with key {sessionId} does not exist in the table.")
+            documents = put_document(query=query, sessionId=sessionId)
+
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            print(f"Item with key {sessionId} does not exist in the table.")
+        else:
+            print(f"An error occurred: {e}")
+
+    return documents
+
+
 def retrieve_relevant_documents(query):
+    documents = list()
     relevant_documents = bedrock_agent.retrieve(
         retrievalQuery={"text": query},
         knowledgeBaseId=KnowledgeBaseId,
         retrievalConfiguration={
             "vectorSearchConfiguration": {
-                "numberOfResults": 3
+                "numberOfResults": 3,
+                "overrideSearchType": "HYBRID",
             }
         },
     )
 
-    return [
-        result["content"]["text"] for result in relevant_documents["retrievalResults"]
-    ]
+    for s3_bucket_uri in [
+        result["metadata"]["cfn_stack"]
+        for result in relevant_documents["retrievalResults"]
+    ]:
+        bucket, key = s3_bucket_uri.replace("s3://", "").split("/", 1)
+        try:
+            # Retrieve the object contents
+            response = s3.get_object(Bucket=bucket, Key=key)
+            contents = response["Body"].read().decode("utf-8")
+            documents.append(contents)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                print("The specified object does not exist.")
+            else:
+                print(f"An error occurred: {e}")
+
+    return documents
+
+
+###############################
+##### Utility Functions  #####
+#############################
+
 
 def get_named_parameter(event, name):
     return next(item for item in event["parameters"] if item["name"] == name)["value"]
 
 
-def generate_cloudformation(event):
-    architectureExplanation = get_named_parameter(event, "architectureExplanation")
+def get_new_architecture_explaination(architectureExplanation, updateInstruction):
     _system_prompt = """
-        You are an expert AWS CloudFormation developer. Your task is to convert instuctions to valid CloudFormation template in YAML format.
-        Accept step-by-step explaination of the AWS Architecture encapsulated between <explain></explain> XML tags and generate its CloudFormation code. 
+        Summarize the below to paragraphs and make sure they are not more that 1000 characters. 
     """
-
-    # documents = retrieve_relevant_documents(architectureExplanation)
-    # Mimic the practices of example CloudFormation templates.
-
     _prompt = f"""
-            
-        Create CLoudFormation code only for AWS Servies present in <explain></explain>
-        
-        <explain>
-        {architectureExplanation}
-        </explain>
-        
-        
-        - Use AWS CloudFormaton Pseudo parameters where necessary.
-        - Use structure of example templates.
-        
-        Do not return examples, only the generated CloudFormation YAML encapsulated between triple backticks (``` ```). Skip the preamble. Think step by step.
+        Summarize the below to paragraphs.
 
+        <para1>
+        {architectureExplanation}
+        </para1>
+
+        <para2>
+        {updateInstruction}
+        </para2>
     """
-    # message_document = [
-    #     {
-    #         "role": "user",
-    #         "content": [
-    #             {
-    #                 "type": "text",
-    #                 "text": f"""Take this example CloudFormation YAML code as a refernce <example{idx}></example{idx}>:
-    #                     <example{idx}>
-    #                         {document}
-    #                     </example{idx}>
-    #                     """,
-    #             }
-    #         ],
-    #     }
-    #     for idx, document in enumerate(documents)
-    # ]
-    message_document = list()
-    message_document.append(
-        {
-            "role": "user",
-            "content": [{"type": "text", "text": _prompt}],
-        },
-    )
-    _messages = message_document
+
+    _messages = [{"role": "user", "content": [{"type": "text", "text": _prompt}]}]
 
     generated_cloudformation_stack = backoff_mechanism(
         invoke_model,
@@ -137,6 +211,76 @@ def generate_cloudformation(event):
     return generated_cloudformation_stack
 
 
+#########################
+##### Generate CFN #####
+#######################
+
+
+def generate_cloudformation(event):
+    architectureExplanation = get_named_parameter(event, "architectureExplanation")
+    _system_prompt = """
+        You are an expert AWS CloudFormation developer. Your task is to convert instuctions to valid CloudFormation template in YAML format.
+        Accept step-by-step explaination of the AWS Architecture encapsulated between <explain></explain> XML tags and generate its CloudFormation code. 
+    """
+
+    documents = cache_documents(
+        query=architectureExplanation, sessionId=event["sessionId"]
+    )
+
+    _prompt = f"""
+            
+        Create CLoudFormation code only for AWS Servies present in <explain></explain>
+        
+        <explain>
+        {architectureExplanation}
+        </explain>
+        
+        - Mimic the practices of example CloudFormation templates given between <example></example> XML tags.
+        - Use AWS CloudFormaton Pseudo parameters where necessary.
+        - Use structure of example templates.
+        
+        Do not return examples or explaination, only return the generated CloudFormation YAML template without ```yaml ```. Skip the preamble. Think step-by-step.
+
+    """
+    message_document = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"""Take this example CloudFormation YAML code as a refernce <example{idx}></example{idx}>:
+                        <example{idx}>
+                            {document}
+                        </example{idx}>
+                        """,
+                } 
+                for idx, document in enumerate(documents)
+            ],
+        }
+    ]
+    message_document[0]["content"].append(
+        {
+            "type": "text",
+            "text": _prompt,
+        },
+    )
+    _messages = message_document
+    
+    generated_cloudformation_stack = backoff_mechanism(
+        invoke_model,
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+        _system_prompt,
+        _messages,
+    )
+
+    return generated_cloudformation_stack
+
+
+#########################
+##### Validate CFN #####
+#######################
+
+
 def validate_cloudformtaion(event):
     cloudformationTemplate = get_named_parameter(event, "cloudformationTemplate")
 
@@ -144,7 +288,6 @@ def validate_cloudformtaion(event):
     try:
         response = cfn.validate_template(
             # TemplateBody=yaml.safe_load(cloudformationTemplate),
-            
             TemplateBody=cloudformationTemplate,
         )
     except Exception as ex:
@@ -159,11 +302,18 @@ def validate_cloudformtaion(event):
     return response
 
 
+##########################
+##### Reiterate CFN #####
+########################
+
+
 def reiterate_cloudformation(event):
     cloudformationTemplate = get_named_parameter(event, "cloudformationTemplate")
     architectureExplanation = get_named_parameter(event, "architectureExplanation")
 
-    documents = retrieve_relevant_documents(architectureExplanation)
+    documents = cache_documents(
+        query=architectureExplanation, sessionId=event["sessionId"]
+    )
     _system_prompt = f"""
         You are an AWS CloudFormation expert and a master of AWS best practices. 
         Your task is to review CloudFormation template provided between <cloudformation></cloudformation> XML tags and iteratively enhance them to align with AWS recommendations and guidelines. 
@@ -179,7 +329,7 @@ def reiterate_cloudformation(event):
             {cloudformationTemplate}
         </cloudformation>
         
-        Do not return examples, only the generated CloudFormation YAML encapsulated between triple backticks (``` ```). Skip the preamble. Think step by step.
+        Do not return examples or explaination, only return the generated CloudFormation YAML template without ```yaml ```. Skip the preamble. Think step-by-step. 
     """
 
     message_document = [
@@ -193,14 +343,15 @@ def reiterate_cloudformation(event):
                             {document}
                         </example{idx}>
                         """,
-                } for idx, document in enumerate(documents)
+                }
+                for idx, document in enumerate(documents)
             ],
         }
     ]
 
     message_document[0]["content"].append(
-       {
-            "type": "text", 
+        {
+            "type": "text",
             "text": _prompt,
         },
     )
@@ -215,17 +366,42 @@ def reiterate_cloudformation(event):
     return updated_cloudformation
 
 
+#######################
+##### Update CFN #####
+#####################
+
+
 def update_cloudformation(event):
     updateInstruction = get_named_parameter(event, "updateInstruction")
     cloudformationTemplate = get_named_parameter(event, "cloudformationTemplate")
     architectureExplanation = get_named_parameter(event, "architectureExplanation")
+
+    newArchitectureExplanation = get_new_architecture_explaination(
+        architectureExplanation, updateInstruction
+    )
+
+    try:
+        dynamodb.delete_item(
+            TableName=table_name, Key={"sessionId": {"S": event["sessionId"]}}
+        )
+    except dynamodb.exceptions.ConditionalCheckFailedException as e:
+        print(f"Conditional check failed: {e}")
+    except dynamodb.exceptions.ResourceNotFoundException as e:
+        print(f"Item not found: {e}")
+    except Exception as e:
+        print(f"Error deleting item: {e}")
+
+    documents = cache_documents(
+        query=newArchitectureExplanation, sessionId=event["sessionId"]
+    )
+
     _system_prompt = """
         You are an expert AWS CloudFormation developer tasked with updating CloudFormation code given in YAML format.
-
-        1. You will be provided with an explaination of architecture diagram in <explain></explain> and the associated CloudFormation YAML code in <cloudformation></cloudformation>. 
-        2. You will receive the update instruction in <update></update> and will need to update the CloudFormation code in <cloudformation></cloudformation>.
-        3. Please note that you should not make any changes to the code until you receive specific instructions from the user. Your role is to accurately interpret the user's requirements and modify the CloudFormation YAML code accordingly.
         
+        1. You will receive the update instruction in <update></update> and will need to update the CloudFormation code in <cloudformation></cloudformation>.
+        2. You will be provided with example AWS CloudFormation between <example></example> XML tags for reference. 
+        
+        Please note that you should not make any changes to the code until you receive specific instructions from the user. Your role is to accurately interpret the user's requirements and modify the CloudFormation YAML code accordingly.
     """
     _prompt = f"""
     
@@ -235,39 +411,60 @@ def update_cloudformation(event):
     {cloudformationTemplate}
     </cloudformation>
     
-    <explain>
-    {architectureExplanation}
-    </explain>
-    
     <update>
     {updateInstruction}
     </update>
-    
-    Once you have completed the updates, you will output the revised CloudFormation YAML code, enclosing it between triple backticks (``` ```). Skip the preamble.
-    """
+            
 
-    _messages = (
-        [
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": _prompt}],
-            }
-        ],
+    Once you have completed the updates, you will output only the revised CloudFormation YAML template without ```yaml ```. Skip the preamble.Think step-by-step. 
+    """
+    message_document = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"""Take this example CloudFormation YAML code as a refernce <example{idx}></example{idx}>:
+                        <example{idx}>
+                            {document}
+                        </example{idx}>
+                        """,
+                }
+                for idx, document in enumerate(documents)
+            ],
+        }
+    ]
+
+    message_document[0]["content"].append(
+        {
+            "type": "text",
+            "text": _prompt,
+        },
     )
+    _messages = message_document
 
     updated_cloudformation = backoff_mechanism(
         invoke_model,
-        "anthropic.claude-3-haiku-20240307-v1:0",
+        "anthropic.claude-3-sonnet-20240229-v1:0",
         _system_prompt,
         _messages,
     )
     return updated_cloudformation
 
 
+##########################
+##### Resolve Error #####
+########################
+
+
 def resolve_error(event):
     error = get_named_parameter(event, "errorInstruction")
     cloudformationTemplate = get_named_parameter(event, "cloudformationTemplate")
-    # TODO: Add error resolution logic here
+    architectureExplanation = get_named_parameter(event, "architectureExplanation")
+
+    documents = cache_documents(
+            query=architectureExplanation, sessionId=event["sessionId"]
+        )
     _system_prompt = """
     You are an AWS CloudFormation expert skilled in analyzing and troubleshooting CloudFormation templates. Your task is as follows:
 
@@ -278,7 +475,7 @@ def resolve_error(event):
     To ensure a high-quality response, please:
 
     - Thoroughly understand the error message and its context within the template.
-    - Leverage your deep knowledge of CloudFormation syntax, resources, and best practices.
+    - Leverage examples provided between <example></example> XML tags.
     - Validate the corrected template to ensure it resolves the error.
 
     Your expertise in troubleshooting CloudFormation templates is crucial for delivering an accurate and actionable solution.
@@ -295,24 +492,47 @@ def resolve_error(event):
     {error}
     </error>
     
-    Once you have completed the updates, you will output the revised CloudFormation YAML code, enclosing it between triple backticks (``` ```). Skip the preamble. Think step-by-step. 
+    Once you have completed the updates, you will output only the revised CloudFormation YAML template without ```yaml ```. Skip the preamble. Think step-by-step. 
     """
 
-    _messages = (
+    message_document = [
         {
             "role": "user",
-            "content": [{"type": "text", "text": _prompt}],
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"""Take this example CloudFormation YAML code as a refernce <example{idx}></example{idx}>:
+                        <example{idx}>
+                            {document}
+                        </example{idx}>
+                        """,
+                }
+                for idx, document in enumerate(documents)
+            ],
+        }
+    ]
+
+    message_document[0]["content"].append(
+        {
+            "type": "text",
+            "text": _prompt,
         },
     )
+    _messages = message_document
 
     updated_cloudformation = backoff_mechanism(
         invoke_model,
-        "anthropic.claude-3-haiku-20240307-v1:0",
+        "anthropic.claude-3-sonnet-20240229-v1:0",
         _system_prompt,
         _messages,
     )
 
     return updated_cloudformation
+
+
+###########################
+##### Lambda Handler #####
+#########################
 
 
 def lambda_handler(event, context):

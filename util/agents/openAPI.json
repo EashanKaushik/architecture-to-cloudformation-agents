@@ -206,6 +206,15 @@
               "schema": {
                 "type": "string"
               }
+            },
+            {
+              "name": "architectureExplanation",
+              "in": "query",
+              "required": true,
+              "description": "Architecture explanation provided by the user",
+              "schema": {
+                "type": "string"
+              }
             }
           ],
           "responses": {

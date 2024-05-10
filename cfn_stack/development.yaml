@@ -58,8 +58,8 @@ Resources:
         Status: Enabled
       BucketEncryption:
         ServerSideEncryptionConfiguration:
-          ServerSideEncryptionByDefault:
-            SSEAlgorithm: AES256
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
 
   LoggingBucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
@@ -114,18 +114,18 @@ Resources:
             Resource: '*'
   
   ###########################
-  ##### PromptStorage ######
-  #########################
+  ##### CacheStorage ######
+  ########################
 
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub PromptStorage-A2C-${EnvironmentName}
+      TableName: !Sub CacheStorage-A2C-${EnvironmentName}
       AttributeDefinitions:
-        - AttributeName: PromptKey
+        - AttributeName: SessionId
           AttributeType: S
       KeySchema:
-        - AttributeName: PromptKey
+        - AttributeName: SessionId
           KeyType: HASH
       ProvisionedThroughput:
         ReadCapacityUnits: 5
@@ -134,6 +134,10 @@ Resources:
         PointInTimeRecoveryEnabled: true
       SSESpecification:
         SSEEnabled: true
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: ttl
+
 
   ###########################
   ##### Knowledge Base #####
@@ -142,6 +146,7 @@ Resources:
   DataSourceBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName: !Sub DataSourceBucket-${EnvironmentName}
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -153,8 +158,8 @@ Resources:
         Status: Enabled
       BucketEncryption:
         ServerSideEncryptionConfiguration:
-          ServerSideEncryptionByDefault:
-            SSEAlgorithm: AES256
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
 
   DataSourceBucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
@@ -167,8 +172,8 @@ Resources:
               - 's3:*'
             Effect: Deny
             Resource: 
-              - !Sub arn:aws:s3:::${DataSourceBucket}/*
-              - !Sub arn:aws:s3:::${DataSourceBucket}
+              - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}/*
+              - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
             Principal: "*"
             Condition:
               Bool:
@@ -216,8 +221,8 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource:
-                  - !GetAtt DataSourceBucket.Arn
-                  - !Sub arn:aws:s3:::${DataSourceBucket}/*
+                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
+                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}/*
                 Condition:
                   StringEquals:
                     aws:PrincipalAccount: !Sub ${AWS::AccountId}
@@ -229,7 +234,7 @@ Resources:
                 Action:
                   - aoss:APIAccessAll
                 Resource:
-                  - !Sub arn:aws:aoss:region:account-id:collection/${AOSSCollection}
+                  - !Sub arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/${AOSSCollection}
            
   KnowledgeBase:
     Type: AWS::Bedrock::KnowledgeBase
@@ -240,16 +245,16 @@ Resources:
       KnowledgeBaseConfiguration:
         Type: "VECTOR"
         VectorKnowledgeBaseConfiguration:
-          EmbeddingModelArn: !Sub "arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1"
+          EmbeddingModelArn: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1
       StorageConfiguration:
-        Type: "OPENSEARCH_SERVERLESS"
+        Type: OPENSEARCH_SERVERLESS
         OpensearchServerlessConfiguration:
           CollectionArn: !GetAtt AOSSCollection.Arn
           VectorIndexName: cfn-knowledge-index
           FieldMapping:
             VectorField: cfn-vector-field
-            TextField: cfn-explain-field
-            MetadataField: cfn-stack-field
+            TextField: text
+            MetadataField: metadata
   
   DataSource:
     Type: AWS::Bedrock::DataSource
@@ -260,7 +265,7 @@ Resources:
       DataSourceConfiguration:
         Type: "S3"
         S3Configuration:
-          BucketArn: !GetAtt DataSourceBucket.Arn
+          BucketArn: !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
           InclusionPrefixes: [ingest/]
       VectorIngestionConfiguration:
         ChunkingConfiguration:
@@ -273,10 +278,11 @@ Resources:
   AOSSCollection:
     Type: 'AWS::OpenSearchServerless::Collection'
     Properties:
-      Name: !Sub aoss-a2c-${EnvironmentName}
+      Name: !Sub aoss${EnvironmentName}
       Type: VECTORSEARCH
       Description: Amazon OpenSearch Serverless collection for storing CloudFormation knowledge
     DependsOn: AOSSCollectionEncryptionPolicy
+
   
   AOSSCollectionEncryptionPolicy:
     Type: 'AWS::OpenSearchServerless::SecurityPolicy'
@@ -285,8 +291,9 @@ Resources:
       Type: encryption
       Description: Encryption policy for OpenSearch Serverless
       Policy: 
-        !Sub - |
-                {"Rules":[{"ResourceType":"collection","Resource":["collection/aoss-A2C-${EnvironmentName}"]}],"AWSOwnedKey":true}
+        !Sub 
+          - '{"Rules":[{"ResourceType":"collection","Resource":["collection/${collection}"]}],"AWSOwnedKey":true}'
+          - {collection: !Sub 'aoss${EnvironmentName}'}
 
   AOSSCollectionAccessPolicy:
     Type: 'AWS::OpenSearchServerless::AccessPolicy'
@@ -296,8 +303,8 @@ Resources:
       Description: Access policy for OpenSearch Serverless
       Policy:
         !Sub 
-          - |
-            [{"Description":"Data Access for KnowledgeBase","Rules":[{"ResourceType":"index","Resource":["index/aoss-A2C-${EnvironmentName}/*"],"Permission":["aoss:DescribeIndex","aoss:ReadDocument","aoss:WriteDocument"]}],"Principal":["arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseServiceRole}"]}]
+          - '[{"Description":"Data Access for KnowledgeBase","Rules":[{"ResourceType":"index","Resource":["index/${collection}/*"],"Permission":["aoss:UpdateIndex","aoss:DescribeIndex","aoss:ReadDocument","aoss:WriteDocument","aoss:CreateIndex"]}],"Principal":["arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseServiceRole}", ${CodeBuildRole}]}]'
+          - {collection: !Sub 'aoss${EnvironmentName}', CodeBuildRole: !Sub 'arn:aws:iam::${AWS::AccountId}:role/DataCodeBuildExecutionRole-${EnvironmentName}'}
   
   AOSSCollectionNetworkPolicy:
     Type: 'AWS::OpenSearchServerless::SecurityPolicy'
@@ -306,14 +313,15 @@ Resources:
       Type: network
       Description: Network policy for OpenSearch Serverless
       Policy:
-        !Sub - |
-                [{"Description":"Network Access for Amazon Bedrock","AllowFromPublic":false, "Rules": [{"ResourceType":"collection","Resource":["collection/${AOSSCollection}"]}],"SourceServices": ["bedrock.amazonaws.com"]}]
+        !Sub 
+          - '[{"Description":"Network Access for Amazon Bedrock","AllowFromPublic":true, "Rules": [{"ResourceType":"collection","Resource":["collection/${collection}"]},{"ResourceType":"dashboard","Resource":["collection/${collection}"]}]}]'
+          - {collection: !Sub 'aoss${EnvironmentName}'}
 
   #####################################
   #### CodeBuild Init DataSource #####
   ###################################
   DataCodeBuildExecutionRole:
-    Type: 'AWS::IAM::Role's
+    Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Join ['-', ['DataCodeBuildExecutionRole', !Ref EnvironmentName]]
       AssumeRolePolicyDocument:
@@ -337,7 +345,7 @@ Resources:
                   - 's3:PutObject'
                   - 's3:GetObject'
                 Resource:
-                  - !Sub arn:aws:s3:::${DataSourceBucket}/*
+                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
         - PolicyName: DataSournceAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -348,6 +356,15 @@ Resources:
                   - 'bedrock:GetIngestionJob'
                 Resource:
                   - !GetAtt KnowledgeBase.KnowledgeBaseArn
+        - PolicyName: OpenSearchServerless
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - aoss:APIAccessAll
+                Resource:
+                  - !Sub arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/${AOSSCollection}
 
   DataCodeBuild:
     Type: AWS::CodeBuild::Project
@@ -370,16 +387,20 @@ Resources:
               phases:
                 pre_build:
                   commands:
-                    - pip3 install awscli 
+                    - pip3 install awscli
+                    - pip3 install opensearch-py
                 build:
                   commands:
                     - echo Build started on `date`
-                    - python3 data/ingest/ingest.py ${DataSourceBucket} ${KnowledgeBase} ${DataSourceId}
+                    - python3 data/ingest/ingest.py ${DataBucket} ${KnowledgeBase} ${DataSourceId}
+                    - python3 util/vector_store/create_index.py ${host}
                 post_build:
                   commands:
                     - echo Build completed on `date`
             - {
-                DataSourceId: !GetAtt DataSource.DataSourceId
+                DataBucket: !Sub 'DataSourceBucket-${EnvironmentName}',
+                DataSourceId: !GetAtt DataSource.DataSourceId,
+                host: !GetAtt AOSSCollection.CollectionEndpoint
               }
       Environment:
         Type: LINUX_CONTAINER
@@ -524,8 +545,8 @@ Resources:
                   - s3:DeleteObjectVersion
                   - s3:ListBucketVersions
                 Resource:
-                  - !Sub arn:aws:s3:::${DataSourceBucket}/*
-                  - !Sub arn:aws:s3:::${DataSourceBucket}
+                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}/*
+                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
                     
   StreamlitBuildCustomResourceFunction:
     Type: "AWS::Lambda::Function"
@@ -536,7 +557,8 @@ Resources:
       Timeout: 300
       Runtime: python3.12
       Code:
-        ZipFile: !Sub |
+        ZipFile: 
+          !Sub |
                 import boto3
                 from time import sleep
                 import cfnresponse
@@ -571,19 +593,20 @@ Resources:
                     cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
 
   StreamlitBuildCustomResource:
-    DependsOn:
-      - DataSourceBucket
-      - DataSource
+    # DependsOn:
+      # - DataSource
+      # - AOSSCollectionAccessPolicy
+      # - AOSSCollectionNetworkPolicy
     Type: Custom::BuildCode
     Properties:
       ServiceToken: !GetAtt StreamlitBuildCustomResourceFunction.Arn
       DATAPROJECT: !Ref DataCodeBuild
       # INITPROJECT: !Ref StreamlitInitCodebuild
-      DATABUCKET: !Ref DataSourceBucket 
+      DATABUCKET: !Sub DataSourceBucket-${EnvironmentName}
 
-  ###########################################
-  ##### Custom Resource Clean Resource #####
-  #########################################
+  # ###########################################
+  # ##### Custom Resource Clean Resource #####
+  # #########################################
 
   StreamlitCleanCustomResourceRole:
     Type: AWS::IAM::Role
@@ -625,8 +648,9 @@ Resources:
       Timeout: 300
       Runtime: python3.12
       Code:
-        ZipFile: !Sub 
-              - |
+        ZipFile: 
+            !Sub 
+              |
                 import boto3
                 from time import sleep
                 import cfnresponse
@@ -649,11 +673,11 @@ Resources:
     Type: Custom::BuildCode
     Properties:
       ServiceToken: !GetAtt StreamlitCleanCustomResourceFunction.Arn
-      DATABUCEKT: !Ref DataSourceBucket
+      DATABUCEKT: !Sub DataSourceBucket-${EnvironmentName}
 
-  #################################
-  ##### Custome Resource ECS #####
-  ###############################
+  # #################################
+  # ##### Custome Resource ECS #####
+  # ###############################
 
   StreamlitECSRoleCustomResourceRole:
     Type: AWS::IAM::Role
@@ -698,38 +722,40 @@ Resources:
       Timeout: 300
       Runtime: python3.12
       Code:
-        ZipFile: !Sub |
-              import boto3
-              from botocore.exceptions import ClientError
-              import cfnresponse
-              iam_client = boto3.client('iam')
+        ZipFile: 
+            !Sub 
+              |
+                import boto3
+                from botocore.exceptions import ClientError
+                import cfnresponse
+                iam_client = boto3.client('iam')
 
-              def handler(event, context):
-                  
-                  try:
-                    request_type = event['RequestType']
-                    print(request_type)
+                def handler(event, context):
+                    
+                    try:
+                      request_type = event['RequestType']
+                      print(request_type)
 
-                    if request_type == 'Create':
-                      desired_role_name = "AWSServiceRoleForECS"
+                      if request_type == 'Create':
+                        desired_role_name = "AWSServiceRoleForECS"
 
-                      try:
-                        iam_client.get_role(RoleName=desired_role_name)
-                        role_exists = True
-                      except ClientError as e:
-                        if e.response['Error']['Code'] == 'NoSuchEntity':
-                          role_exists = False
-                        else:
+                        try:
+                          iam_client.get_role(RoleName=desired_role_name)
                           role_exists = True
+                        except ClientError as e:
+                          if e.response['Error']['Code'] == 'NoSuchEntity':
+                            role_exists = False
+                          else:
+                            role_exists = True
 
-                      print(role_exists)
-                      if not role_exists:
-                        iam_client.create_service_linked_role(AWSServiceName="ecs.amazonaws.com")
-                  except Exception as ex:
-                    print(ex)
-                    cfnresponse.send(event, context, cfnresponse.FAILED, {})
-                  else:
-                    cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                        print(role_exists)
+                        if not role_exists:
+                          iam_client.create_service_linked_role(AWSServiceName="ecs.amazonaws.com")
+                    except Exception as ex:
+                      print(ex)
+                      cfnresponse.send(event, context, cfnresponse.FAILED, {})
+                    else:
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
   
   StreamlitECSRoleCustomResource:
     Type: Custom::ECSRole

@@ -114,3 +114,4 @@ frontend/cypress/snapshots/linux/1x
 .vscode/
 
 temp.py
+temp.*
