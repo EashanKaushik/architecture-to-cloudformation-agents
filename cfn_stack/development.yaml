@@ -9,7 +9,10 @@ Metadata:
       Parameters:
       - GitURL
       - EnvironmentName
-
+    - Label:
+        default: 'Agent Configuration'
+      Parameters:
+      - BedrockModelId
 Parameters:
   EnvironmentName:
     Description: Lowercase unique name to distinguish different web application in the same AWS account (min length 1 and max length 4)
@@ -21,6 +24,12 @@ Parameters:
     Type: String
     Description: Initial repository for web application
     Default: https://github.com/EashanKaushik/architecture-to-cloudformation-agents.git
+  
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-sonnet-20240229-v1:0
+    Description: Amazon Bedrock Model ID for the agent
+    MinLength: 1
 
 Mappings:
   # Cloudfront Mappings
@@ -390,6 +399,7 @@ Resources:
         Type: NO_ARTIFACTS
   
   AossCodeBuildLogGroup:
+    DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/codebuild/${AossCodeBuild}"
@@ -421,9 +431,10 @@ Resources:
               - Effect: 'Allow'
                 Action:
                   - 's3:PutObject'
+                  - 's3:PutObjectAcl'
                   - 's3:GetObject'
                 Resource:
-                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
+                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
         - PolicyName: DataSournceAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -464,6 +475,7 @@ Resources:
                 post_build:
                   commands:
                     - echo Build completed on `date`
+                    - aws s3 cp --recursive util/agent s3://${DataBucket}/agent
             - {
                 DataBucket: !Sub 'datasource${AWS::AccountId}-${EnvironmentName}',
                 DataSourceId: !GetAtt DataSource.DataSourceId,
@@ -478,10 +490,175 @@ Resources:
         Type: NO_ARTIFACTS
   
   DataCodeBuildLogGroup:
+    DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/codebuild/${DataCodeBuild}"
       RetentionInDays: 7
+
+  ###################
+  ##### Agents #####
+  #################
+  
+  AgentResource:
+    DependsOn: StreamlitBuildCustomResource
+    Type: AWS::Bedrock::Agent
+    Properties:
+      AgentName: !Sub atc-agent-${EnvironmentName}
+      AgentResourceRoleArn: !GetAtt AgentRole.Arn
+      FoundationModel: !Ref BedrockModelId
+      Instruction: > 
+        You are an expert at writing AWS production-ready CloudFormation templates. Your will obtain a detailed explanation of an architecture diagram from the user.
+        Based on the user's explanation, generate a valid AWS CloudFormation template in YAML format that accurately represents the described architecture. Follow these steps:
+        1. Generate an initial AWS CloudFormation template.
+        2. Iterate over the AWS CloudFormation template, incorporating AWS best practices, to produce an optimized version.
+        3. Validate the CloudFormation template.
+        4. If errors are found, resolve them without validating again.
+        If the user provides update instructions, modify the existing CloudFormation template accordingly to reflect the desired changes. Follow these steps:
+        1. Update the AWS CloudFormation template based on the instructions.
+        2. Iterate over the updated AWS CloudFormation template, incorporating AWS best practices, to produce an optimized version.
+        3. Validate the updated CloudFormation template.
+        4. If errors are found, resolve them without validating again.
+        You can validate cloudformation template as well. 
+      Description: "Agent for Architecture to CloudFormation."
+      ActionGroups:
+        - ActionGroupName: atcActionGroup
+          ActionGroupExecutor: 
+            Lambda: !GetAtt AgentLambdaFunction.Arn
+          ApiSchema:
+            S3:
+              S3BucketName: !Sub 'datasource${AWS::AccountId}-${EnvironmentName}'
+              S3ObjectKey: agent/openAPI.json
+  
+  AgentAliasResource:
+    Type: AWS::Bedrock::AgentAlias
+    Properties:
+      AgentId: !GetAtt AgentResource.AgentId
+      AgentAliasName: !Sub atc-alias-${EnvironmentName}
+
+  AgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub AmazonBedrockExecutionRoleForAgents_${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - bedrock.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockInvokeModel
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/agent/crm_schema.json
+    
+  ########################
+  ##### ActionGroup #####
+  ######################
+
+  AgentLambdaFunction:
+    DependsOn: StreamlitBuildCustomResource
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      FunctionName: !Sub atc-lambda-action-${EnvironmentName}
+      Handler: lambda.lambda_handler
+      Role: !GetAtt AgentLambdaRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          EnvironmentName: !Ref EnvironmentName
+          KnowledgeBaseId: !Ref KnowledgeBase
+      Code:
+        S3Bucket: !Sub 'datasource${AWS::AccountId}-${EnvironmentName}'
+        S3Key: agent/lambda.zip
+
+  AgentLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: KnowledgeBasePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:Retrieve
+                Resource:
+                  - !GetAtt KnowledgeBase.KnowledgeBaseArn
+        - PolicyName: CloudFormationValidatePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:ValidateTemplate
+                Resource:
+                  - "*"
+        - PolicyName: BedrockPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
+                  - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0
+        - PolicyName: DynamoDBPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource:
+                  - !GetAtt DynamoDBTable.Arn
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
+
+  AgentLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt AgentLambdaFunction.Arn
+      Principal: bedrock.amazonaws.com
+      SourceArn: !GetAtt AgentResource.AgentArn
 
   ###################################
   ##### CodeBuild Docker Build #####
@@ -631,7 +808,7 @@ Resources:
 
                 codebuild = boto3.client("codebuild")
                 def start_codebuild(build_id):
-                    status = 'STARTING'
+                  status = 'STARTING'
 
                   while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
                     status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
@@ -640,6 +817,7 @@ Resources:
                     raise Exception("Build failed")
                   
                   return
+
                 def handler(event, context):
                   try:
                     request_type = event['RequestType']
