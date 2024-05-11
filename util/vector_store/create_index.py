@@ -24,7 +24,7 @@ body_json = {
    },
    "mappings": {
       "properties": {
-        "vector": {
+        "cfn-vector-field": {
         "type": "knn_vector",
         "dimension": 1536,
             "method": {
@@ -36,7 +36,7 @@ body_json = {
         "text": {
         "type": "text"
         },
-        "text-metadata": {
+        "metadata": {
         "type": "text"         
     }
       }
