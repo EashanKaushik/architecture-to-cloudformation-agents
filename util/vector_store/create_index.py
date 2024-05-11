@@ -3,6 +3,8 @@ from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth, Re
 import boto3
 
 import sys
+import json
+from time import sleep
 
 boto3_session = boto3.session.Session()
 region_name = boto3_session.region_name
@@ -10,7 +12,7 @@ region_name = boto3_session.region_name
 credentials = boto3.Session().get_credentials()
 awsauth = auth = AWSV4SignerAuth(credentials, region_name, "aoss")
 
-host = sys.argv[1]
+host = sys.argv[1].replace("https://", "")
 
 index_name = f"cfn-knowledge-index"
 body_json = {
@@ -50,3 +52,16 @@ oss_client = OpenSearch(
     connection_class=RequestsHttpConnection,
     timeout=300
 )
+
+try:
+    response = oss_client.indices.create(index=index_name, body=json.dumps(body_json))
+    print('\nCreating index:')
+    print(response)
+
+    # index creation can take up to a minute
+    sleep(60)
+except RequestError as e:
+    # you can delete the index if its already exists
+    # oss_client.indices.delete(index=index_name)
+    print(f'Error while trying to create the index, with error {e.error}\nyou may unmark the delete above to delete, and recreate the index')
+    

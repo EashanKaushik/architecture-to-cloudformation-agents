@@ -146,7 +146,7 @@ Resources:
   DataSourceBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub DataSourceBucket-${EnvironmentName}
+      BucketName: !Sub datasource${AWS::AccountId}-${EnvironmentName}
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -172,8 +172,8 @@ Resources:
               - 's3:*'
             Effect: Deny
             Resource: 
-              - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}/*
-              - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
+              - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
+              - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
             Principal: "*"
             Condition:
               Bool:
@@ -221,8 +221,8 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource:
-                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
-                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}/*
+                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
+                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
                 Condition:
                   StringEquals:
                     aws:PrincipalAccount: !Sub ${AWS::AccountId}
@@ -237,6 +237,7 @@ Resources:
                   - !Sub arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/${AOSSCollection}
            
   KnowledgeBase:
+    DependsOn: StreamlitECSRoleCustomResource
     Type: AWS::Bedrock::KnowledgeBase
     Properties:
       Name: !Sub KnowledgeBase-A2C-${EnvironmentName}
@@ -265,7 +266,7 @@ Resources:
       DataSourceConfiguration:
         Type: "S3"
         S3Configuration:
-          BucketArn: !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
+          BucketArn: !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
           InclusionPrefixes: [ingest/]
       VectorIngestionConfiguration:
         ChunkingConfiguration:
@@ -303,8 +304,8 @@ Resources:
       Description: Access policy for OpenSearch Serverless
       Policy:
         !Sub 
-          - '[{"Description":"Data Access for KnowledgeBase","Rules":[{"ResourceType":"index","Resource":["index/${collection}/*"],"Permission":["aoss:UpdateIndex","aoss:DescribeIndex","aoss:ReadDocument","aoss:WriteDocument","aoss:CreateIndex"]}],"Principal":["arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseServiceRole}", ${CodeBuildRole}]}]'
-          - {collection: !Sub 'aoss${EnvironmentName}', CodeBuildRole: !Sub 'arn:aws:iam::${AWS::AccountId}:role/DataCodeBuildExecutionRole-${EnvironmentName}'}
+          - '[{"Description":"Data Access for KnowledgeBase","Rules":[{"ResourceType":"index","Resource":["index/${collection}/*"],"Permission":["aoss:UpdateIndex","aoss:DescribeIndex","aoss:ReadDocument","aoss:WriteDocument","aoss:CreateIndex"]}],"Principal":["arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseServiceRole}", "${CodeBuildRole}"]}]'
+          - {collection: !Sub 'aoss${EnvironmentName}', CodeBuildRole: !Sub 'arn:aws:iam::${AWS::AccountId}:role/AossCodeBuildExecutionRole-${EnvironmentName}'}
   
   AOSSCollectionNetworkPolicy:
     Type: 'AWS::OpenSearchServerless::SecurityPolicy'
@@ -316,6 +317,83 @@ Resources:
         !Sub 
           - '[{"Description":"Network Access for Amazon Bedrock","AllowFromPublic":true, "Rules": [{"ResourceType":"collection","Resource":["collection/${collection}"]},{"ResourceType":"dashboard","Resource":["collection/${collection}"]}]}]'
           - {collection: !Sub 'aoss${EnvironmentName}'}
+
+  ################################
+  #### AoSS Init DataSource #####
+  ##############################
+  AossCodeBuildExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join ['-', ['AossCodeBuildExecutionRole', !Ref EnvironmentName]]
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'codebuild.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - !GetAtt LogsPolicy.PolicyArn
+      Policies:
+        - PolicyName: OpenSearchServerless
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - aoss:APIAccessAll
+                Resource:
+                  - !Sub arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/${AOSSCollection}
+  
+  AossCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Join ['-', ['AossCodeBuild', !Ref EnvironmentName]]
+      Description: CodeBuild for initializing Aoss index
+      Cache:
+        Location: LOCAL
+        Modes:
+          - LOCAL_SOURCE_CACHE
+          - LOCAL_DOCKER_LAYER_CACHE
+        Type: LOCAL
+      Source:
+        Type: GITHUB
+        Location: !Ref GitURL
+        BuildSpec: 
+          !Sub
+            - |
+              version: 0.2
+              phases:
+                pre_build:
+                  commands:
+                    - pip3 install awscli
+                    - pip3 install opensearch-py
+                build:
+                  commands:
+                    - echo Build started on `date`
+                    - python3 util/vector_store/create_index.py ${host}
+                post_build:
+                  commands:
+                    - echo Build completed on `date`
+            - {
+                host: !GetAtt AOSSCollection.CollectionEndpoint
+              }
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ComputeType: BUILD_GENERAL1_SMALL
+      ServiceRole: !GetAtt AossCodeBuildExecutionRole.Arn
+      TimeoutInMinutes: 10
+      Artifacts:
+        Type: NO_ARTIFACTS
+  
+  AossCodeBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${AossCodeBuild}"
+      RetentionInDays: 7
 
   #####################################
   #### CodeBuild Init DataSource #####
@@ -345,7 +423,7 @@ Resources:
                   - 's3:PutObject'
                   - 's3:GetObject'
                 Resource:
-                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
+                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
         - PolicyName: DataSournceAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -356,15 +434,6 @@ Resources:
                   - 'bedrock:GetIngestionJob'
                 Resource:
                   - !GetAtt KnowledgeBase.KnowledgeBaseArn
-        - PolicyName: OpenSearchServerless
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - aoss:APIAccessAll
-                Resource:
-                  - !Sub arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/${AOSSCollection}
 
   DataCodeBuild:
     Type: AWS::CodeBuild::Project
@@ -388,19 +457,16 @@ Resources:
                 pre_build:
                   commands:
                     - pip3 install awscli
-                    - pip3 install opensearch-py
                 build:
                   commands:
                     - echo Build started on `date`
                     - python3 data/ingest/ingest.py ${DataBucket} ${KnowledgeBase} ${DataSourceId}
-                    - python3 util/vector_store/create_index.py ${host}
                 post_build:
                   commands:
                     - echo Build completed on `date`
             - {
-                DataBucket: !Sub 'DataSourceBucket-${EnvironmentName}',
+                DataBucket: !Sub 'datasource${AWS::AccountId}-${EnvironmentName}',
                 DataSourceId: !GetAtt DataSource.DataSourceId,
-                host: !GetAtt AOSSCollection.CollectionEndpoint
               }
       Environment:
         Type: LINUX_CONTAINER
@@ -545,8 +611,8 @@ Resources:
                   - s3:DeleteObjectVersion
                   - s3:ListBucketVersions
                 Resource:
-                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}/*
-                  - !Sub arn:aws:s3:::DataSourceBucket-${EnvironmentName}
+                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
+                  - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
                     
   StreamlitBuildCustomResourceFunction:
     Type: "AWS::Lambda::Function"
@@ -565,6 +631,8 @@ Resources:
 
                 codebuild = boto3.client("codebuild")
                 def start_codebuild(build_id):
+                    status = 'STARTING'
+
                   while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
                     status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
                     sleep(15)
@@ -576,9 +644,7 @@ Resources:
                   try:
                     request_type = event['RequestType']
                     if request_type == 'Create':
-                      status = 'STARTING'
                       start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['DATAPROJECT'])['build']['id'])
-                      # start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['INITPROJECT'])['build']['id'])
                     elif request_type == 'Delete':
                       bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCKET'])
                       bucket.object_versions.delete()
@@ -593,16 +659,13 @@ Resources:
                     cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
 
   StreamlitBuildCustomResource:
-    # DependsOn:
-      # - DataSource
-      # - AOSSCollectionAccessPolicy
-      # - AOSSCollectionNetworkPolicy
+    DependsOn: KnowledgeBase
     Type: Custom::BuildCode
     Properties:
       ServiceToken: !GetAtt StreamlitBuildCustomResourceFunction.Arn
       DATAPROJECT: !Ref DataCodeBuild
       # INITPROJECT: !Ref StreamlitInitCodebuild
-      DATABUCKET: !Sub DataSourceBucket-${EnvironmentName}
+      DATABUCKET: !Sub datasource${AWS::AccountId}-${EnvironmentName}
 
   # ###########################################
   # ##### Custom Resource Clean Resource #####
@@ -673,7 +736,7 @@ Resources:
     Type: Custom::BuildCode
     Properties:
       ServiceToken: !GetAtt StreamlitCleanCustomResourceFunction.Arn
-      DATABUCEKT: !Sub DataSourceBucket-${EnvironmentName}
+      DATABUCEKT: !Sub datasource${AWS::AccountId}-${EnvironmentName}
 
   # #################################
   # ##### Custome Resource ECS #####
@@ -712,7 +775,18 @@ Resources:
                   - iam:AttachRolePolicy
                 Resource:
                   - "*"
-                  
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:                  
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  - !GetAtt AossCodeBuild.Arn
+
+
   StreamlitECSRoleCustomResourceFunction:
     Type: "AWS::Lambda::Function"
     Properties:
@@ -728,13 +802,26 @@ Resources:
                 import boto3
                 from botocore.exceptions import ClientError
                 import cfnresponse
+                from time import sleep
                 iam_client = boto3.client('iam')
+                codebuild = boto3.client("codebuild")
+
+                def start_codebuild(build_id):
+                  status = 'STARTING'
+
+                  while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
+                    status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
+                    sleep(15)
+                  if status in ['FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
+                    raise Exception("Build failed")
 
                 def handler(event, context):
                     
                     try:
                       request_type = event['RequestType']
                       print(request_type)
+                      if request_type == 'Create':
+                        start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['AOSSPROJECT'])['build']['id'])
 
                       if request_type == 'Create':
                         desired_role_name = "AWSServiceRoleForECS"
@@ -761,3 +848,4 @@ Resources:
     Type: Custom::ECSRole
     Properties:
       ServiceToken: !GetAtt StreamlitECSRoleCustomResourceFunction.Arn 
+      AOSSPROJECT: !Ref AossCodeBuild
