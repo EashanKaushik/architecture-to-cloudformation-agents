@@ -1,133 +1,111 @@
 import streamlit as st
 
-from botocore.config import Config
+from botocore.exceptions import EventStreamError
 from boto3.session import Session
 
-import uuid
-import json
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_community.chat_models import BedrockChat
+
+import time
+import random
+import base64
 
 
-class BedrockAgent:
-    """BedrockAgent class for invoking an Anthropic AI agent.
+def invoke_model(model, messages, data_placeholder=None):
 
-    This class provides a wrapper for invoking an AI agent hosted on Anthropic's
-    Bedrock platform. It handles authentication, session management, and tracing
-    to simplify interacting with a Bedrock agent.
+    cfn_code = str()
+    for chunk in model.stream(messages):
+        cfn_code += chunk.content
+        with data_placeholder.container():
+            st.write(cfn_code)
 
-    Usage:
+    return cfn_code
 
-    agent = BedrockAgent()
-    response, trace = agent.invoke_agent(input_text)
 
-    The invoke_agent() method sends the input text to the agent and returns
-    the agent's response text and trace information.
+def backoff_mechanism(func, model, messages, data_placeholder=None):
+    MAX_RETRIES = 5  # Maximum number of retries
+    INITIAL_DELAY = 1  # Initial delay in seconds
+    MAX_DELAY = 60  # Maximum delay in second
 
-    Trace information includes the agent's step-by-step reasoning and any errors.
-    This allows visibility into how the agent came up with the response.
+    delay = INITIAL_DELAY
+    retries = 0
 
-    The class initializes session state and authentication on first run. It
-    reuses the session for subsequent calls for continuity.
-
-    Requires streamlit and boto3. Authentication requires credentials configured
-    in secrets management.
-    """
-
-    def __init__(self, environmentName) -> None:
-        if "BEDROCK_RUNTIME_CLIENT" not in st.session_state:
-            # if st.secrets.environment_prod_dev.EXEC_ENV == "dev":
-            #     st.session_state["BEDROCK_RUNTIME_CLIENT"] = Session(profile_name="CRM-Agent").client("bedrock-agent-runtime", config=Config(read_timeout=600))
-            # elif st.secrets.environment_prod_dev.EXEC_ENV == "prod":
-            st.session_state["BEDROCK_RUNTIME_CLIENT"] = Session().client(
-                "bedrock-agent-runtime", config=Config(read_timeout=600)
-            )
-
-        if "SESSION_ID" not in st.session_state:
-            st.session_state["SESSION_ID"] = str(uuid.uuid1())
-
-        # self.agent_id = st.secrets.bedrock_agent_credentials.AGENT_ID
-        # self.agent_alias_id = st.secrets.bedrock_agent_credentials.AGENT_ALIAS_ID
-        self.agent_id = (
-            Session()
-            .client("ssm")
-            .get_parameter(
-                Name=f"/streamlitapp/{environmentName}/AGENT_ID", WithDecryption=True
-            )["Parameter"]["Value"]
-        )
-        self.agent_alias_id = (
-            Session()
-            .client("ssm")
-            .get_parameter(
-                Name=f"/streamlitapp/{environmentName}/AGENT_ALIAS_ID",
-                WithDecryption=True,
-            )["Parameter"]["Value"]
-        )
-
-    def new_session(self):
-        st.session_state["SESSION_ID"] = str(uuid.uuid1())
-
-    def invoke_agent(self, input_text, trace):
-
-        response_text = ""
-        trace_text = ""
-        step = 0
-
-        response = st.session_state["BEDROCK_RUNTIME_CLIENT"].invoke_agent(
-            inputText=input_text,
-            agentId=self.agent_id,
-            agentAliasId=self.agent_alias_id,
-            sessionId=st.session_state["SESSION_ID"],
-            enableTrace=True,
-        )
-
+    while retries < MAX_RETRIES:
         try:
-            for event in response["completion"]:
-                if "chunk" in event:
+            return func(model, messages, data_placeholder)
+        except EventStreamError as e:
+            print(f"Retry {retries + 1}/{MAX_RETRIES}: {e}")
+            time.sleep(delay + random.uniform(0, 1))  # Add a random jitter
+            delay = min(delay * 2, MAX_DELAY)
+            retries += 1
 
-                    data = event["chunk"]["bytes"]
-                    response_text = data.decode("utf8")
 
-                elif "trace" in event:
+class Bedrock:
+    def __init__(self, inference_params):
+        self._inference_params = inference_params
 
-                    trace_obj = event["trace"]["trace"]
+        self._explain_prompt = """
+            You are an AWS Certified Solutions Architect with extensive experience in interpreting and explaining AWS Architecture diagrams. Given an architecture diagram as input, your task is to provide a detailed, step-by-step description of the components and their interactions within the architecture.
 
-                    if "orchestrationTrace" in trace_obj:
+            When describing the architecture, follow these guidelines:
 
-                        trace_dump = json.dumps(
-                            trace_obj["orchestrationTrace"], indent=2
-                        )
+            1. Identify the main components and services depicted in the diagram.
+            2. Explain the flow of data and requests through the architecture, starting from the client or user interface and tracing the path through various components.
+            3. Describe the purpose and role of each component in the architecture, highlighting its responsibilities and how it contributes to the overall system.
 
-                        if "rationale" in trace_obj["orchestrationTrace"]:
+            Output the explanation in a concise and understandable format in no more than 1000 characters.
+            """
 
-                            step += 1
-                            trace_text += f'\n\n\n---------- Step {step} ----------\n\n\n{trace_obj["orchestrationTrace"]["rationale"]["text"]}\n\n\n'
-                            trace.markdown(
-                                f'\n\n\n---------- Step {step} ----------\n\n\n{trace_obj["orchestrationTrace"]["rationale"]["text"]}\n\n\n'
-                            )
+        self._sys_explain_prompt = "Your goal is to provide a concise and easily understandable step-by-step explaination of the AWS Architecture diagram. Skip the preamble."
 
-                        elif (
-                            "modelInvocationInput"
-                            not in trace_obj["orchestrationTrace"]
-                        ):
+    def get_explain_messages(self, image, image_type):
+        human_message = [
+            {"type": "text", "text": self._explain_prompt},
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": image_type,
+                    "data": base64.b64encode(image.getvalue()).decode("utf-8"),
+                },
+            },
+        ]
 
-                            trace_text += "\n\n\n" + trace_dump + "\n\n\n"
-                            trace.markdown("\n\n\n" + trace_dump + "\n\n\n")
+        return [
+            SystemMessage(content=self._sys_explain_prompt),
+            HumanMessage(content=human_message),
+        ]
 
-                    elif "failureTrace" in trace_obj:
+    def invoke_explain_model(self, image, image_type, data_placeholder):
 
-                        trace_text += "\n\n\n" + trace_dump + "\n\n\n"
-                        trace.markdown("\n\n\n" + trace_dump + "\n\n\n")
+        explain_model = self.get_llm()
 
-                    elif "postProcessingTrace" in trace_obj:
+        messages = self.get_explain_messages(image, image_type)
 
-                        step += 1
-                        trace_text += f"\n\n\n---------- Step {step} ----------\n\n\n{json.dumps(trace_obj['postProcessingTrace']['modelInvocationOutput']['parsedResponse']['text'], indent=2)}\n\n\n"
-                        trace.markdown(
-                            f"\n\n\n---------- Step {step} ----------\n\n\n{json.dumps(trace_obj['postProcessingTrace']['modelInvocationOutput']['parsedResponse']['text'], indent=2)}\n\n\n"
-                        )
+        explain = backoff_mechanism(
+            func=invoke_model,
+            model=explain_model,
+            messages=messages,
+            data_placeholder=data_placeholder,
+        )
+        return explain
+        # if "explain" in st.session_state:
+        #     del st.session_state["explain"]
+        # else:
+        #     st.session_state["explain"] = explain
 
-        except Exception as e:
-            trace_text += str(e)
-            trace.markdown(str(e))
-            raise Exception("unexpected event.", e)
+    def get_llm(self, streaming=True):
+        model_kwargs = {
+            "max_tokens": 4096,
+            "temperature": self._inference_params["temperature"],
+            "top_k": self._inference_params["top_k"],
+            "top_p": self._inference_params["top_p"],
+            "stop_sequences": ["\n\nHuman:"],
+        }
 
-        return response_text, trace_text
+        return BedrockChat(
+            model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_kwargs=model_kwargs,
+            client=Session().client("bedrock-runtime"),
+            streaming=streaming,
+        )

@@ -29,8 +29,8 @@
                     "type": "object",
                     "properties": {
                       "cloudformationTemplate": {
-                        "type": "string",
-                        "description": "AWS CloudFormation template generated based on the architecture explanation"
+                        "type": "boolean",
+                        "description": "Confirmation that AWS CloudFormation template generated successfully"
                       }
                     }
                   }
@@ -46,17 +46,6 @@
       "/validateCloudFormation": {
         "get": {
           "description": "Validate AWS CloudFormation template",
-          "parameters": [
-            {
-              "name": "cloudformationTemplate",
-              "in": "query",
-              "required": true,
-              "description": "Current AWS CloudFormation template to be validated",
-              "schema": {
-                "type": "string"
-              }
-            }
-          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -89,15 +78,6 @@
           "description": "Iteratively refine the generated AWS CloudFormation template, incorporating AWS best practices, to produce an optimized version of the CloudFormation template.",
           "parameters": [
             {
-              "name": "cloudformationTemplate",
-              "in": "query",
-              "required": true,
-              "description": "Current AWS CloudFormation template to be reiterated",
-              "schema": {
-                "type": "string"
-              }
-            },
-            {
               "name": "architectureExplanation",
               "in": "query",
               "required": true,
@@ -116,8 +96,8 @@
                     "type": "object",
                     "properties": {
                       "updatedCloudformationTemplate": {
-                        "type": "string",
-                        "description": "Updated AWS CloudFormation template incorporating AWS best practices"
+                        "type": "boolean",
+                        "description": "Confirmation that AWS CloudFormation template reiterated successfully"
                       }
                     }
                   }
@@ -134,15 +114,6 @@
         "get": {
           "description": "Update instruction provided by the user to change AWS CloudFormation template",
           "parameters": [
-            {
-              "name": "cloudformationTemplate",
-              "in": "query",
-              "required": true,
-              "description": "Current AWS CloudFormation template to be updated",
-              "schema": {
-                "type": "string"
-              }
-            },
             {
               "name": "updateInstruction",
               "in": "query",
@@ -171,8 +142,8 @@
                     "type": "object",
                     "properties": {
                       "updatedCloudformationTemplate": {
-                        "type": "string",
-                        "description": "Updated AWS CloudFormation template after applying the update instruction"
+                        "type": "boolean",
+                        "description": "Confirmation that AWS CloudFormation template updated successfully"
                       }
                     }
                   }
@@ -189,15 +160,6 @@
         "get": {
           "description": "Resolve error to generate a new AWS CloudFormation template",
           "parameters": [
-            {
-              "name": "cloudformationTemplate",
-              "in": "query",
-              "required": true,
-              "description": "Current AWS CloudFormation template to be updated",
-              "schema": {
-                "type": "string"
-              }
-            },
             {
               "name": "errorInstruction",
               "in": "query",
@@ -226,8 +188,8 @@
                     "type": "object",
                     "properties": {
                       "updatedCloudformationTemplate": {
-                        "type": "string",
-                        "description": "Updated AWS CloudFormation template"
+                        "type": "boolean",
+                        "description": "Confirmation that AWS CloudFormation template updated successfully"
                       }
                     }
                   }

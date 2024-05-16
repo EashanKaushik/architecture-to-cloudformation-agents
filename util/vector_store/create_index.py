@@ -1,4 +1,9 @@
-from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth, RequestError
+from opensearchpy import (
+    OpenSearch,
+    RequestsHttpConnection,
+    AWSV4SignerAuth,
+    RequestError,
+)
 
 import boto3
 
@@ -16,46 +21,38 @@ host = sys.argv[1].replace("https://", "")
 
 index_name = f"cfn-knowledge-index"
 body_json = {
-   "settings": {
-      "index.knn": "true",
-       "number_of_shards": 1,
-       "knn.algo_param.ef_search": 512,
-       "number_of_replicas": 0,
-   },
-   "mappings": {
-      "properties": {
-        "cfn-vector-field": {
-        "type": "knn_vector",
-        "dimension": 1536,
-            "method": {
-                "name": "hnsw",
-                "engine": "faiss",
-                "space_type": "l2"
+    "settings": {
+        "index.knn": "true",
+        "number_of_shards": 1,
+        "knn.algo_param.ef_search": 512,
+        "number_of_replicas": 0,
+    },
+    "mappings": {
+        "properties": {
+            "cfn-vector-field": {
+                "type": "knn_vector",
+                "dimension": 1536,
+                "method": {"name": "hnsw", "engine": "faiss", "space_type": "l2"},
             },
-        },
-        "text": {
-        "type": "text"
-        },
-        "metadata": {
-        "type": "text"         
-    }
-      }
-   }
+            "text": {"type": "text"},
+            "metadata": {"type": "text"},
+        }
+    },
 }
 
 # Build the OpenSearch client
 oss_client = OpenSearch(
-    hosts=[{'host': host, 'port': 443}],
+    hosts=[{"host": host, "port": 443}],
     http_auth=awsauth,
     use_ssl=True,
     verify_certs=True,
     connection_class=RequestsHttpConnection,
-    timeout=300
+    timeout=300,
 )
 
 try:
     response = oss_client.indices.create(index=index_name, body=json.dumps(body_json))
-    print('\nCreating index:')
+    print("\nCreating index:")
     print(response)
 
     # index creation can take up to a minute
@@ -63,5 +60,6 @@ try:
 except RequestError as e:
     # you can delete the index if its already exists
     # oss_client.indices.delete(index=index_name)
-    print(f'Error while trying to create the index, with error {e.error}\nyou may unmark the delete above to delete, and recreate the index')
-    
+    print(
+        f"Error while trying to create the index, with error {e.error}\nyou may unmark the delete above to delete, and recreate the index"
+    )

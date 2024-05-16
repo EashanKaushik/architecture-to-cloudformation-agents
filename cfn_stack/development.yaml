@@ -323,16 +323,9 @@ Resources:
   ##### Application LoadBalancer ######
   ####################################
 
-  StreamlitContainerTargetGroup:
-    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
-    Properties:
-      Port: 80
-      Protocol: "HTTP"
-      TargetType: ip
-      VpcId: !Ref VPCId
-      Name: !Join ['-', ['StreamlitContainerTG', !Ref EnvironmentName]]
-
   StreamlitApplicationLoadBalancer:
+    DependsOn: 
+      - LoggingBucketPolicy
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
       Name: !Join ['-', ['StreamlitALB', !Ref EnvironmentName]]
@@ -340,7 +333,7 @@ Resources:
         - Key: access_logs.s3.enabled
           Value: true
         - Key: access_logs.s3.bucket
-          Value: !Ref LoggingBucketName
+          Value: !Ref LoggingBucket
         - Key: access_logs.s3.prefix
           Value: alb/logs
         - Key: load_balancing.cross_zone.enabled
@@ -358,7 +351,7 @@ Resources:
     Type: "AWS::ElasticLoadBalancingV2::Listener"
     Properties:
       LoadBalancerArn: !Ref StreamlitApplicationLoadBalancer
-      Port: 80
+      Port: !Ref ContainerPort
       Protocol: HTTP
       DefaultActions: 
         - FixedResponseConfig:
@@ -381,6 +374,20 @@ Resources:
               - !Join ['-', [!Sub "${AWS::StackName}", !Sub "${AWS::AccountId}"]]
       ListenerArn: !Ref StreamlitHTTPListener
       Priority: 1
+
+  StreamlitContainerTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Port: !Ref ContainerPort
+      Protocol: "HTTP"
+      TargetType: ip
+      VpcId: !Ref VPCId
+      Name: !Join ['-', ['StreamlitContainerTG', !Ref EnvironmentName]]
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.type
+          Value: lb_cookie
 
   ########################
   ##### CloudFront ######
@@ -429,7 +436,7 @@ Resources:
         HttpVersion: "http2"
         IPV6Enabled: true
         Logging: 
-          Bucket: !Sub '${LoggingBucketName}.s3.amazonaws.com'
+          Bucket: !Sub '${LoggingBucket}.s3.amazonaws.com'
           IncludeCookies: true
           Prefix: !Sub distribution-${EnvironmentName}-logs/
         ViewerCertificate:
@@ -446,13 +453,17 @@ Resources:
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub CacheStorage-A2C-${EnvironmentName}
+      TableName: !Sub templatestorage-atc-${EnvironmentName}
       AttributeDefinitions:
-        - AttributeName: SessionId
+        - AttributeName: sessionId
+          AttributeType: S
+        - AttributeName: version
           AttributeType: S
       KeySchema:
-        - AttributeName: SessionId
+        - AttributeName: sessionId
           KeyType: HASH
+        - AttributeName: version
+          KeyType: RANGE
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
@@ -773,7 +784,7 @@ Resources:
                 Action:
                   - 'bedrock:InvokeAgent'
                 Resource:
-                  - !GetAtt AgentResource.AgentId
+                  - !GetAtt AgentResource.AgentArn
         - PolicyName: 'DataBucketAccessPolicy'
           PolicyDocument:
             Version: '2012-10-17'
@@ -825,7 +836,7 @@ Resources:
               awslogs-group: !Ref StreamlitLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: "ecs"
-          Image: !Ref StreamLitImageURI
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
           PortMappings:
             - AppProtocol: "http"
               ContainerPort: !Ref ContainerPort
@@ -882,7 +893,7 @@ Resources:
         ScaleInCooldown: 10
         ScaleOutCooldown: 10
         # Keep things at or lower than 50% CPU utilization, for example
-        TargetValue: !Ref Tv
+        TargetValue: !Ref TargetCpu
 
   #####################################
   #### CodeBuild Init DataSource #####
@@ -1145,7 +1156,7 @@ Resources:
   #################################
   
   StreamlitCodeBuildExecutionRole:
-    Type: 'AWS::IAM::Role's
+    Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Join ['-', ['StreamlitInitCodeBuildRole', !Ref EnvironmentName]]
       AssumeRolePolicyDocument:
@@ -1202,21 +1213,18 @@ Resources:
                   commands:
                     - pip3 install awscli 
                     - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
-                    - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
-                    - COMMIT_HASH=${!COMMIT_HASH//./a}
-                    - IMAGE_TAG=${!COMMIT_HASH:=latest}
                 build:
                   commands:
                     - echo Build started on `date`
                     - printf '\n' >> Dockerfile
-                    - printf 'ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=${ContainerPort}", "--", "--environmentName", "${EnvironmentName}"]' >> Dockerfile
+                    - printf 'ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=${ContainerPort}", "--", "--environmentName", "${EnvironmentName}", "--GitURL", "${GitURL}"]' >> Dockerfile
                     - cat Dockerfile
                     - docker build -t ${StreamlitImageRepo} .
-                    - docker tag ${StreamlitImageRepo}:latest ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:$IMAGE_TAG
+                    - docker tag ${StreamlitImageRepo}:latest ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
                 post_build:
                   commands:
                     - echo Build completed on `date`
-                    - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:$IMAGE_TAG
+                    - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
             - { 
                 StreamlitImageRepo: !Ref StreamlitImageRepo
               }
@@ -1333,9 +1341,9 @@ Resources:
       INITPROJECT: !Ref StreamlitCodeBuild
       DATABUCKET: !Sub datasource${AWS::AccountId}-${EnvironmentName}
 
-  # ###########################################
-  # ##### Custom Resource Clean Resource #####
-  # #########################################
+  ###########################################
+  ##### Custom Resource Clean Resource #####
+  #########################################
 
   StreamlitCleanCustomResourceRole:
     Type: AWS::IAM::Role
@@ -1404,9 +1412,9 @@ Resources:
       ServiceToken: !GetAtt StreamlitCleanCustomResourceFunction.Arn
       DATABUCEKT: !Sub datasource${AWS::AccountId}-${EnvironmentName}
 
-  # #################################
-  # ##### Custome Resource ECS #####
-  # ###############################
+  ################################
+  ##### Custom Resource ECS #####
+  ##############################
 
   StreamlitECSRoleCustomResourceRole:
     Type: AWS::IAM::Role
@@ -1536,6 +1544,13 @@ Resources:
       Value: !GetAtt AgentAliasResource.AgentAliasId
       Description: !Sub SSM parameter for AgentAliasId for ATC ${EnvironmentName}
 
+  KnowledgeBaseIdSSMParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /streamlitapp/${EnvironmentName}/KNOWLEDGEBASEID
+      Type: String
+      Value: !Ref KnowledgeBase
+      Description: !Sub SSM parameter for KnowledgeBaseId for ATC ${EnvironmentName}
 Outputs:
   CloudfrontURL:
     Description: "CloudFront URL"
