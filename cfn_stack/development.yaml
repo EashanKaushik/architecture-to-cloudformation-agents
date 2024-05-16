@@ -207,7 +207,6 @@ Resources:
   LogsPolicy:
     Type: "AWS::IAM::ManagedPolicy"
     Properties:
-      ManagedPolicyName: 'LogsPolicy'
       Path: /
       ManagedPolicyName: !Sub "LogsPolicy-${EnvironmentName}"
       PolicyDocument:
@@ -491,8 +490,6 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      VersioningConfiguration:
-        Status: Enabled
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -1292,7 +1289,7 @@ Resources:
       FunctionName: !Join ['-', ['BuildResourceF', !Ref EnvironmentName]]
       Handler: index.handler
       Role: !GetAtt StreamlitBuildCustomResourceRole.Arn
-      Timeout: 300
+      Timeout: 600
       Runtime: python3.12
       Code:
         ZipFile: 
@@ -1302,6 +1299,15 @@ Resources:
                 import cfnresponse
 
                 codebuild = boto3.client("codebuild")
+                
+                def clean_bucket():
+                  try:
+                    bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCKET'])
+                    bucket.object_versions.delete()
+                    bucket.objects.all().delete()
+                  except Exception as ex:
+                    print(ex)
+
                 def start_codebuild(build_id):
                   status = 'STARTING'
 
@@ -1320,14 +1326,10 @@ Resources:
                       start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['DATAPROJECT'])['build']['id'])
                       start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['INITPROJECT'])['build']['id'])
                     elif request_type == 'Delete':
-                      bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCKET'])
-                      bucket.object_versions.delete()
-                      bucket.objects.all().delete()
+                      clean_bucket()
                   except Exception as ex:
-                    print(ex)
-                    bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCKET'])
-                    bucket.object_versions.delete()
-                    bucket.objects.all().delete()
+                    print(ex) 
+                    clean_bucket()
                     cfnresponse.send(event, context, cfnresponse.FAILED, {})
                   else:
                     cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
