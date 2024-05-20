@@ -1,3 +1,5 @@
+import boto3
+
 from opensearchpy import (
     OpenSearch,
     RequestsHttpConnection,
@@ -5,7 +7,6 @@ from opensearchpy import (
     RequestError,
 )
 
-import boto3
 
 import sys
 import json

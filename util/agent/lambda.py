@@ -15,10 +15,10 @@ main(
 )
 sys.path.insert(0, "/tmp/")
 
-import json
 from botocore.exceptions import ClientError
 from boto3.session import Session
 
+import json
 import random
 import time
 import os

@@ -115,3 +115,5 @@ frontend/cypress/snapshots/linux/1x
 
 temp.py
 temp.*
+*.pptx
+*.mov

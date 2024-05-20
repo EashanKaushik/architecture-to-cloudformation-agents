@@ -1,7 +1,8 @@
 import boto3
+from botocore.exceptions import ClientError
+
 import sys
 import os
-from botocore.exceptions import ClientError
 import json
 
 bedrock_agent_client = boto3.client("bedrock-agent")

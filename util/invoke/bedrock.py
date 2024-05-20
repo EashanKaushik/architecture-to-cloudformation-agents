@@ -1,8 +1,8 @@
-import streamlit as st
-
 from botocore.exceptions import EventStreamError
 from boto3.session import Session
 from botocore.config import Config
+
+import streamlit as st
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.chat_models import BedrockChat
