@@ -27,86 +27,122 @@ Temperature = st.sidebar.slider(
 Top_P = st.sidebar.slider("Top P", min_value=0.0, max_value=1.0, step=0.001, value=1.0)
 Top_K = st.sidebar.slider("Top K", min_value=0, max_value=500, step=1, value=250)
 
-bedrock = Bedrock({"temperature": Temperature, "top_p": Top_P, "top_k": Top_K})
-agent = BedrockAgent(environmentName)
-knowledgebase = KnowledgeBase(environmentName)
-explain = None
+bedrock = Bedrock(
+    inference_params={"temperature": Temperature, "top_p": Top_P, "top_k": Top_K}
+)
+agent = BedrockAgent(environmentName=environmentName)
+knowledgebase = KnowledgeBase(environmentName=environmentName)
+
+warning = st.container()
 
 st.title("Architecture to CloudFormation")
-heading_column1, heading_column_space, heading_column2 = st.columns((6, 2, 2))
 
-with heading_column1:
-    st.subheader(":grey[Amazon Bedrock Agents]")
+st.subheader(":grey[Amazon Bedrock Agents]")
 
-with heading_column2:
+heading_button_left, heading_button_center, heading_button_right = st.columns((1, 1, 8))
 
+with heading_button_left:
+    if st.button("Clear Session", type="primary"):
+        if "chat_history" in st.session_state:
+            del st.session_state["chat_history"]
+        if "explain" in st.session_state:
+            del st.session_state["explain"]
+        if "uploaded_file" in st.session_state:
+            del st.session_state["uploaded_file"]
+
+        if "metadata_uri" in st.session_state:
+            del st.session_state["metadata_uri"]
+
+        agent.new_session()
+        knowledgebase.new_session()
+        bedrock.new_session()
+        st.rerun()
+
+
+with heading_button_center:
+    if st.button("Validate"):
+        if "chat_history" not in st.session_state:
+            with warning:
+                st.warning(
+                    "Cannot validate, upload architecture diagram first!", icon="⚠️"
+                )
+        else:
+            st.session_state["chat_history"].append(
+                {
+                    "role": "human",
+                    "prompt": "Validate the the most recently generated AWS CloudFormation template.",
+                }
+            )
+            _, trace_text = agent.invoke_agent(
+                text=st.session_state["explain"], trace=None, instruction="validate"
+            )
+            response_text = knowledgebase.get_generated_cloudformation(
+                sessionId=agent.get_session_id()
+            )
+
+            st.session_state["chat_history"].append(
+                {
+                    "role": "assistant",
+                    "prompt": "```yaml" + response_text,
+                    "trace": trace_text,
+                }
+            )
+
+with heading_button_right:
     st.link_button("_Github_ :sunglasses:", GitURL)
 
-# st.markdown(
-#     """
-# <style>
-#     .stButton button {
-#         background-color: white;
-#         width: 82px;
-#         border: 0px;
-#         padding: 0px;
-#     }
-#     .stButton button:hover {
-#         background-color: white;
-#         color: black;
-#     }
-
-# </style>
-# """,
-#     unsafe_allow_html=True,
-# )
-
-uploaded_file = st.file_uploader(
+st.session_state["uploaded_file"] = st.file_uploader(
     "Upload an Architecture diagram to generate AWS CloudFormation code",
     type=["jpeg", "png"],
     disabled="chat_history" in st.session_state,
 )
 
 # file is uploaded
-if uploaded_file is not None:
+if st.session_state["uploaded_file"] is not None:
     image_col, explain_col = st.columns((5, 5))
 
     with image_col:
-        st.image(uploaded_file.getvalue())
+        st.image(st.session_state["uploaded_file"].getvalue())
 
     with explain_col:
         explain_placeholder = st.empty()
 
-    explain = bedrock.invoke_explain_model(
-        uploaded_file, uploaded_file.type, explain_placeholder
-    )
+    if "explain" not in st.session_state:
+        st.session_state["explain"] = bedrock.invoke_explain_model(
+            st.session_state["uploaded_file"],
+            st.session_state["uploaded_file"].type,
+            explain_placeholder,
+        )
+    else:
+        explain_placeholder.markdown(
+            st.session_state["explain"], unsafe_allow_html=True
+        )
 
-if explain:
+if "explain" in st.session_state:
 
-    metadata_uri = knowledgebase.cache_documents(explain, agent.get_session_id())
+    if "chat_history" in st.session_state:
 
-    with st.sidebar:
-        st.header("Knowledge Base")
-        for uri in metadata_uri:
-            with st.container(border=True):
-                st.image(read_image(uri["architecture_image"]), width=300)
-                download_button_str = download_button(
-                    button_text="Download",
-                    object_to_download=download_cfn(uri["cfn_stack"]),
-                    download_filename="data.yaml",
-                )
-                st.markdown(download_button_str, unsafe_allow_html=True)
+        for index, chat in enumerate(st.session_state["chat_history"]):
+            with st.chat_message(chat["role"]):
+                if chat["role"] == "assistant":
+                    col1, col2, col3 = st.columns((5, 4, 1))
+
+                    col1.markdown(chat["prompt"], unsafe_allow_html=True)
+
+                    if col3.checkbox(
+                        "Trace", value=False, key=index, label_visibility="visible"
+                    ):
+                        col2.subheader("Trace")
+                        col2.markdown(chat["trace"])
+                else:
+                    st.markdown(chat["prompt"])
 
     if "chat_history" not in st.session_state or not st.session_state["chat_history"]:
-        st.session_state["chat_history"] = [
-            {
-                "role": "user",
-                "prompt": "Generate AWS CloudFormation template of the Architecture diagram.",
-            }
-        ]
+
+        st.session_state["chat_history"] = list()
 
         with st.chat_message("assistant"):
-            col1, col2, col3 = st.columns((5, 4, 1))
+            col1, col2, col3 = st.columns((5, 3, 2))
 
             if col3.checkbox(
                 "Trace",
@@ -116,72 +152,69 @@ if explain:
             ):
                 col2.subheader("Trace")
 
-            response_text, trace_text = agent.invoke_agent(
-                text=explain, trace=col2, instruction="generate"
+            _, trace_text = agent.invoke_agent(
+                text=st.session_state["explain"], trace=col2, instruction="generate"
             )
+            response_text = knowledgebase.get_generated_cloudformation(
+                sessionId=agent.get_session_id()
+            )
+
             st.session_state["chat_history"].append(
-                {"role": "assistant", "prompt": response_text, "trace": trace_text}
-            )
-
-            col1.markdown(response_text, unsafe_allow_html=True)
-
-        st.session_state["chat_history"].append(
-            [
                 {
                     "role": "assistant",
-                    "prompt": "Hi, I am a CloudFormation Agent. I have provided you with initial AWS CloudFormation template. You can give me update instructions to update the template. You can use these two buttons to clear session or validate generated YAML template.",
+                    "prompt": "```yaml" + response_text,
+                    "trace": trace_text,
                 }
-            ]
-        )
-
-    for index, chat in enumerate(st.session_state["chat_history"]):
-        with st.chat_message(chat["role"]):
-            if index == 2:
-                col1, space, col2 = st.columns((7, 1, 2))
-                col1.markdown(chat["prompt"])
-                with col2:
-                    if st.button("Clear Session", type="primary"):
-                        del st.session_state["chat_history"]
-                        agent.new_session()
-                        explain = None
-                        uploaded_file = None
-
-                    if st.button("Validate"):
-                        print("Validate")
-
-            elif chat["role"] == "assistant":
-                col1, col2, col3 = st.columns((5, 4, 1))
-
-                col1.markdown(chat["prompt"], unsafe_allow_html=True)
-
-                if col3.checkbox(
-                    "Trace", value=False, key=index, label_visibility="visible"
-                ):
-                    col2.subheader("Trace")
-                    col2.markdown(chat["trace"])
-            else:
-                st.markdown(chat["prompt"])
-
-    if prompt := st.chat_input("Give the bot update instructions..."):
-        st.session_state["chat_history"].append({"role": "human", "prompt": prompt})
-
-        with st.chat_message("human"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            col1, col2, col3 = st.columns((5, 4, 1))
-
-            if col3.checkbox(
-                "Trace",
-                value=True,
-                key=len(st.session_state["chat_history"]),
-                label_visibility="visible",
-            ):
-                col2.subheader("Trace")
-
-            response_text, trace_text = bedrock.invoke_agent(prompt, col2)
-            st.session_state["chat_history"].append(
-                {"role": "assistant", "prompt": response_text, "trace": trace_text}
             )
 
-            col1.markdown(response_text, unsafe_allow_html=True)
+            col1.markdown("```yaml" + response_text, unsafe_allow_html=True)
+
+    if "chat_history" in st.session_state:
+        if prompt := st.chat_input("Give the bot update instructions..."):
+            st.session_state["chat_history"].append({"role": "human", "prompt": prompt})
+
+            with st.chat_message("human"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                col1, col2, col3 = st.columns((5, 4, 1))
+
+                if col3.checkbox(
+                    "Trace",
+                    value=True,
+                    key=len(st.session_state["chat_history"]),
+                    label_visibility="visible",
+                ):
+                    col2.subheader("Trace")
+
+                _, trace_text = agent.invoke_agent(
+                    text=prompt, trace=col2, instruction="update"
+                )
+                response_text = knowledgebase.get_generated_cloudformation(
+                    sessionId=agent.get_session_id()
+                )
+
+                st.session_state["chat_history"].append(
+                    {
+                        "role": "assistant",
+                        "prompt": "```yaml" + response_text,
+                        "trace": trace_text,
+                    }
+                )
+
+                col1.markdown("```yaml" + response_text, unsafe_allow_html=True)
+
+    st.session_state["metadata_uri"] = knowledgebase.retrieve_metadata(
+        query=st.session_state["explain"], sessionId=agent.get_session_id()
+    )
+    with st.sidebar:
+        st.header("Knowledge Base")
+        for uri in st.session_state["metadata_uri"]:
+            with st.container(border=True):
+                st.image(read_image(uri["architecture_image"]), width=300)
+                download_button_str = download_button(
+                    button_text="Download",
+                    object_to_download=download_cfn(uri["cfn_stack"]),
+                    download_filename="data.yaml",
+                )
+                st.markdown(download_button_str, unsafe_allow_html=True)

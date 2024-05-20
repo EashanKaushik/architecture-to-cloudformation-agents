@@ -1,28 +1,6 @@
-The architecture diagram depicts an AWS serverless application that leverages various services to handle customer interactions and data storage. Here's a step-by-step description of the components and their interactions:
+he architecture starts with the InvokeAgent() function, which triggers Agents for Amazon Bedrock. These agents interact with the OpenAPI Schema stored in Amazon S3 Artifacts and AWS Lambda function to complete actions. 
+Amazon Bedrock agent can perform the following actions:
 
-Agents for Amazon Bedrock: This component represents the client or user interface where agents interact with the system. It invokes the InvokeAgent() function, initiating the request flow.
-
-AWS Lambda Bot Actions: This is an AWS Lambda function that acts as the entry point for handling agent requests. It receives the path parameter from the Agents for Amazon Bedrock component.
-
-Customers DynamoDB: This is an Amazon DynamoDB table that stores customer data. The Lambda function retrieves customer data by executing the get customer data operation on this table.
-
-Interactions DynamoDB: Another DynamoDB table responsible for storing customer interactions. The Lambda function fetches the latest interactions by executing the get latest interactions operation on this table.
-
-Jira: The diagram indicates an integration with Jira, a popular issue tracking and project management tool. The Lambda function likely interacts with Jira to update or create issues based on customer interactions.
-
-Amazon S3 Artifacts: This component represents an Amazon S3 bucket that stores artifacts or resources related to the application. The Lambda function likely retrieves or stores data in this S3 bucket based on the requirements of the application.
-
-Lambda Code: This component represents the actual code or logic implemented within the AWS Lambda function. It orchestrates the interactions between various components, processes the incoming requests, and performs the necessary operations.
-
-OpenAPI Schema: This component likely represents an OpenAPI (formerly Swagger) specification that defines the API contract or interface for the application. The Lambda function adheres to this schema when handling requests and responses.
-
-The overall flow of the architecture is as follows:
-
-An agent interacts with the Agents for Amazon Bedrock interface and invokes the InvokeAgent() function, passing the path parameter.
-The AWS Lambda Bot Actions function is triggered, receiving the path parameter.
-The Lambda function retrieves customer data from the Customers DynamoDB table and the latest interactions from the Interactions DynamoDB table.
-Based on the customer data and interactions, the Lambda function may interact with Jira to update or create issues related to the customer's request.
-The Lambda function may also retrieve or store artifacts or resources from the Amazon S3 Artifacts bucket as part of its processing logic.
-The Lambda function's code executes the necessary business logic, adhering to the OpenAPI Schema for handling requests and responses.
-The processed response or result is returned to the Agents for Amazon Bedrock interface, completing the request cycle.
-This serverless architecture leverages AWS services like Lambda, DynamoDB, S3, and integrates with external tools like Jira to handle customer interactions, data storage, and issue tracking in a scalable and event-driven manner.
+1. Get customer data from Customers DynamoDB table.
+2. Get latest interactions of a particular customer from Interactions DynamoDB table.
+3. Get or update open JIRA tasks using JIRA development API.

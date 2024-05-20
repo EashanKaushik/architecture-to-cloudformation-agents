@@ -1,59 +1,60 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: >
-  This is development stack for a2c agents. 
+Description: |
+  This is development stack for a2c agents.
 Metadata:
-  'AWS::CloudFormation::Interface':
+  AWS::CloudFormation::Interface:
     ParameterGroups:
-    - Label:
-        default: 'Environment Configuration'
-      Parameters:
-      - GitURL
-      - EnvironmentName
-    - Label:
-        default: 'Agent Configuration'
-      Parameters:
-      - BedrockModelId
-    - Label:
-        default: 'VPC Configurations'
-      Parameters:
-      - VPCId
-      - PublicSubnetAId
-      - PublicSubnetBId
-      - PrivateSubnetAId
-      - PrivateSubnetBId 
-    - Label:
-        default: 'Autoscaling'
-      Parameters:
-      - Task
-      - Min
-      - Max
-      - TargetCpu
-    - Label:
-        default: 'Container Configurations'
-      Parameters:
-      - Cpu
-      - Memory
-      - ContainerPort      
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - GitURL
+          - EnvironmentName
+      - Label:
+          default: Agent Configuration
+        Parameters:
+          - BedrockModelId
+      - Label:
+          default: VPC Configurations
+        Parameters:
+          - VPCId
+          - PublicSubnetAId
+          - PublicSubnetBId
+          - PrivateSubnetAId
+          - PrivateSubnetBId
+      - Label:
+          default: Autoscaling
+        Parameters:
+          - Task
+          - Min
+          - Max
+          - TargetCpu
+      - Label:
+          default: Container Configurations
+        Parameters:
+          - Cpu
+          - Memory
+          - ContainerPort
 
 Parameters:
   EnvironmentName:
-    Description: Lowercase unique name to distinguish different web application in the same AWS account (min length 1 and max length 4)
+    Description: Lowercase unique name to distinguish different web application in
+      the same AWS account (min length 1 and max length 4)
     Type: String
     MinLength: 1
     MaxLength: 4
-  
+
   GitURL:
     Type: String
     Description: Initial repository for web application
     Default: https://github.com/EashanKaushik/architecture-to-cloudformation-agents.git
-  
+
   BedrockModelId:
     Type: String
     Default: anthropic.claude-3-sonnet-20240229-v1:0
     Description: Amazon Bedrock Model ID for the agent
     MinLength: 1
-  
-  PublicSubnetAId: 
+
+  PublicSubnetAId:
     Type: AWS::EC2::Subnet::Id
     Description: Public Subnet A Id
     MinLength: 1
@@ -79,7 +80,9 @@ Parameters:
     MinLength: 1
 
   Cpu:
-    Description: "CPU of Fargate Task. Make sure you put valid Memory and CPU pair, refer: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecs-taskdefinition.html#cfn-ecs-taskdefinition-cpu:~:text=requires%3A%20Replacement-,Cpu,-The%20number%20of"
+    Description: 'CPU of Fargate Task. Make sure you put valid Memory and CPU pair,
+      refer:
+      https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecs-taskdefinition.html#cfn-ecs-taskdefinition-cpu:~:text=requires%3A%20Replacement-,Cpu,-The%20number%20of'
     Type: Number
     Default: 512
     AllowedValues:
@@ -88,9 +91,11 @@ Parameters:
       - 1024
       - 2048
       - 4096
-  
+
   Memory:
-    Description: "Memory of Fargate Task.  Make sure you put valid Memory and CPU pair, refer: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecs-taskdefinition.html#cfn-ecs-taskdefinition-cpu:~:text=requires%3A%20Replacement-,Cpu,-The%20number%20of"
+    Description: 'Memory of Fargate Task.  Make sure you put valid Memory and CPU
+      pair, refer:
+      https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecs-taskdefinition.html#cfn-ecs-taskdefinition-cpu:~:text=requires%3A%20Replacement-,Cpu,-The%20number%20of'
     Type: Number
     Default: 1024
     AllowedValues:
@@ -110,22 +115,24 @@ Parameters:
     Description: Desired Docker task count
     Type: Number
     Default: 2
-  
+
   Min:
-    Description: Minimum containers for Autoscaling. Should be less than or equal to DesiredTaskCount
+    Description: Minimum containers for Autoscaling. Should be less than or equal to
+      DesiredTaskCount
     Type: Number
     Default: 2
-  
+
   Max:
-    Description: Maximum containers for Autoscaling. Should be greater than or equal to DesiredTaskCount
+    Description: Maximum containers for Autoscaling. Should be greater than or equal
+      to DesiredTaskCount
     Type: Number
     Default: 5
-  
+
   TargetCpu:
     Description: CPU Utilization Target
     Type: Number
     Default: 80
-  
+
   ContainerPort:
     Description: Port for Docker host and container
     Type: Number
@@ -133,25 +140,25 @@ Parameters:
 Mappings:
   # Cloudfront Mappings
   CFRegionMap:
-    'us-east-1':
-      PrefixListCloudFront: 'pl-3b927c52'
-    'us-west-2':
-      PrefixListCloudFront: 'pl-82a045eb'
+    us-east-1:
+      PrefixListCloudFront: pl-3b927c52
+    us-west-2:
+      PrefixListCloudFront: pl-82a045eb
 
   # Cloudfront Mappings
   ELBRegionMap:
-    'us-east-1':
+    us-east-1:
       ELBAccountId: '127311923021'
-    'us-west-2':
+    us-west-2:
       ELBAccountId: '797873946194'
 Resources:
   ###########################
   ##### Logging Cofig ######
   #########################
-  
+
   # Logging bucket
-  LoggingBucket: 
-    Type: "AWS::S3::Bucket"
+  LoggingBucket:
+    Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
       OwnershipControls:
@@ -170,7 +177,7 @@ Resources:
               SSEAlgorithm: AES256
 
   LoggingBucketPolicy:
-    Type: 'AWS::S3::BucketPolicy'
+    Type: AWS::S3::BucketPolicy
     DeletionPolicy: Retain
     Properties:
       Bucket: !Ref LoggingBucket
@@ -178,46 +185,49 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Action:
-              - 's3:PutObject'
+              - s3:PutObject
             Effect: Allow
             Principal:
               Service: logging.s3.amazonaws.com
-            Resource: 
+            Resource:
               - !Sub arn:aws:s3:::${LoggingBucket}/*
           - Action:
-              - 's3:PutObject'
+              - s3:PutObject
             Effect: Allow
             Principal:
-              AWS: !Sub 
-                    - arn:aws:iam::${ElbAccount}:root
-                    - {ElbAccount: !FindInMap [ELBRegionMap, !Ref 'AWS::Region', ELBAccountId]}
-            Resource: 
+              AWS: !Sub
+                - arn:aws:iam::${ElbAccount}:root
+                - ElbAccount: !FindInMap
+                    - ELBRegionMap
+                    - !Ref AWS::Region
+                    - ELBAccountId
+            Resource:
               - !Sub arn:aws:s3:::${LoggingBucket}/alb/logs/AWSLogs/${AWS::AccountId}/*
           - Action:
-              - 's3:*'
+              - s3:*
             Effect: Deny
-            Resource: 
+            Resource:
               - !Sub arn:aws:s3:::${LoggingBucket}/*
               - !Sub arn:aws:s3:::${LoggingBucket}
-            Principal: "*"
+            Principal: '*'
             Condition:
               Bool:
-                'aws:SecureTransport': 'false'
-  
+                aws:SecureTransport: 'false'
+
   LogsPolicy:
-    Type: "AWS::IAM::ManagedPolicy"
+    Type: AWS::IAM::ManagedPolicy
     Properties:
       Path: /
-      ManagedPolicyName: !Sub "LogsPolicy-${EnvironmentName}"
+      ManagedPolicyName: !Sub LogsPolicy-${EnvironmentName}
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Action:
-              - 'logs:CreateLogGroup'
-              - 'logs:CreateLogStream'
-              - 'logs:PutLogEvents'
-              - 'logs:PutRetentionPolicy'
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:PutRetentionPolicy
             Resource: '*'
 
   ###############################
@@ -228,7 +238,10 @@ Resources:
     Type: AWS::ECS::Cluster
     DependsOn: StreamlitECSRoleCustomResource
     Properties:
-      ClusterName: !Join ['-', ['StreamlitCluster', !Ref EnvironmentName]]
+      ClusterName: !Join
+        - '-'
+        - - StreamlitCluster
+          - !Ref EnvironmentName
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
@@ -237,13 +250,13 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       EmptyOnDelete: true
-      ImageScanningConfiguration: 
+      ImageScanningConfiguration:
         ScanOnPush: true
 
   ############################
   ##### Security Group ######
   ##########################
-  
+
   StreamlitALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -251,13 +264,16 @@ Resources:
       VpcId: !Ref VPCId
       Tags:
         - Key: Name
-          Value: !Join ['-', ['StreamlitALBSecurityGroup', !Ref EnvironmentName]]
-  
+          Value: !Join
+            - '-'
+            - - StreamlitALBSecurityGroup
+              - !Ref EnvironmentName
+
   ALBSGDefaultOutBoundRule:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
       GroupId: !GetAtt StreamlitALBSecurityGroup.GroupId
-      IpProtocol: "-1"
+      IpProtocol: '-1'
       CidrIp: 0.0.0.0/0
       Description: Deny all outbound traffic by default
 
@@ -266,19 +282,22 @@ Resources:
     Properties:
       GroupId: !GetAtt StreamlitALBSecurityGroup.GroupId
       IpProtocol: tcp
-      FromPort: !Ref ContainerPort 
+      FromPort: !Ref ContainerPort
       ToPort: !Ref ContainerPort
       CidrIp: 0.0.0.0/0
       Description: !Sub Allow outbound ${ContainerPort} port
-  
+
   ALBSGInBoundRule:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       GroupId: !GetAtt StreamlitALBSecurityGroup.GroupId
       IpProtocol: tcp
-      FromPort: !Ref ContainerPort 
+      FromPort: !Ref ContainerPort
       ToPort: !Ref ContainerPort
-      SourcePrefixListId: !FindInMap ['CFRegionMap', !Ref 'AWS::Region', 'PrefixListCloudFront']
+      SourcePrefixListId: !FindInMap
+        - CFRegionMap
+        - !Ref AWS::Region
+        - PrefixListCloudFront
       Description: !Sub Allow ${ContainerPort} port from Cloudfront
 
   StreamlitContainerSecurityGroup:
@@ -288,13 +307,16 @@ Resources:
       VpcId: !Ref VPCId
       Tags:
         - Key: Name
-          Value: !Join ['-', ['StreamlitContainerSecurityGroup', !Ref EnvironmentName]]
+          Value: !Join
+            - '-'
+            - - StreamlitContainerSecurityGroup
+              - !Ref EnvironmentName
 
   ContainerSGDefaultOutBoundRule:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
       GroupId: !GetAtt StreamlitContainerSecurityGroup.GroupId
-      IpProtocol: "-1"
+      IpProtocol: '-1'
       CidrIp: 0.0.0.0/0
       Description: Deny all outbound traffic by default
 
@@ -303,31 +325,34 @@ Resources:
     Properties:
       GroupId: !GetAtt StreamlitContainerSecurityGroup.GroupId
       IpProtocol: tcp
-      FromPort: !Ref ContainerPort 
+      FromPort: !Ref ContainerPort
       ToPort: !Ref ContainerPort
       CidrIp: 0.0.0.0/0
-      Description:  !Sub Allow ${ContainerPort} port outbound
-  
+      Description: !Sub Allow ${ContainerPort} port outbound
+
   ContainerSGInBoundRule:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       GroupId: !GetAtt StreamlitContainerSecurityGroup.GroupId
       IpProtocol: tcp
-      FromPort: !Ref ContainerPort 
+      FromPort: !Ref ContainerPort
       ToPort: !Ref ContainerPort
       SourceSecurityGroupId: !Ref StreamlitALBSecurityGroup
       Description: !Sub Allow ${ContainerPort} port from ALB SG
-  
+
   ######################################
   ##### Application LoadBalancer ######
   ####################################
 
   StreamlitApplicationLoadBalancer:
-    DependsOn: 
+    DependsOn:
       - LoggingBucketPolicy
-    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Join ['-', ['StreamlitALB', !Ref EnvironmentName]]
+      Name: !Join
+        - '-'
+        - - StreamlitALB
+          - !Ref EnvironmentName
       LoadBalancerAttributes:
         - Key: access_logs.s3.enabled
           Value: true
@@ -339,49 +364,55 @@ Resources:
           Value: true
       Scheme: internet-facing
       Type: application
-      Subnets: 
+      Subnets:
         - !Ref PublicSubnetAId
         - !Ref PublicSubnetBId
-      SecurityGroups: 
+      SecurityGroups:
         - !Ref StreamlitALBSecurityGroup
       IpAddressType: ipv4
 
   StreamlitHTTPListener:
-    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref StreamlitApplicationLoadBalancer
       Port: !Ref ContainerPort
       Protocol: HTTP
-      DefaultActions: 
+      DefaultActions:
         - FixedResponseConfig:
             ContentType: text/plain
             MessageBody: Access denied
             StatusCode: 403
           Type: fixed-response
-  
+
   StreamlitALBListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties: 
-      Actions: 
+    Properties:
+      Actions:
         - Type: forward
           TargetGroupArn: !Ref StreamlitContainerTargetGroup
-      Conditions: 
+      Conditions:
         - Field: http-header
           HttpHeaderConfig:
             HttpHeaderName: X-Custom-Header
-            Values: 
-              - !Join ['-', [!Sub "${AWS::StackName}", !Sub "${AWS::AccountId}"]]
+            Values:
+              - !Join
+                - '-'
+                - - !Sub ${AWS::StackName}
+                  - !Sub ${AWS::AccountId}
       ListenerArn: !Ref StreamlitHTTPListener
       Priority: 1
 
   StreamlitContainerTargetGroup:
-    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Port: !Ref ContainerPort
-      Protocol: "HTTP"
+      Protocol: HTTP
       TargetType: ip
       VpcId: !Ref VPCId
-      Name: !Join ['-', ['StreamlitContainerTG', !Ref EnvironmentName]]
+      Name: !Join
+        - '-'
+        - - StreamlitContainerTG
+          - !Ref EnvironmentName
       TargetGroupAttributes:
         - Key: stickiness.enabled
           Value: true
@@ -393,49 +424,54 @@ Resources:
   ######################
 
   Distribution:
-    Type: "AWS::CloudFront::Distribution"
+    Type: AWS::CloudFront::Distribution
     Properties:
-      DistributionConfig: 
-        Origins: 
+      DistributionConfig:
+        Origins:
           - ConnectionAttempts: 3
             ConnectionTimeout: 10
             DomainName: !GetAtt StreamlitApplicationLoadBalancer.DNSName
             Id: !Ref StreamlitApplicationLoadBalancer
             OriginCustomHeaders:
-               - HeaderName: X-Custom-Header
-                 HeaderValue: !Join ['-', [!Sub "${AWS::StackName}", !Sub "${AWS::AccountId}"]]
+              - HeaderName: X-Custom-Header
+                HeaderValue: !Join
+                  - '-'
+                  - - !Sub ${AWS::StackName}
+                    - !Sub ${AWS::AccountId}
             CustomOriginConfig:
               HTTPPort: '80'
-              OriginProtocolPolicy: 'http-only'
-        DefaultCacheBehavior: 
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
           ForwardedValues:
             Cookies:
               Forward: whitelist
-              WhitelistedNames: [token]
+              WhitelistedNames:
+                - token
             QueryString: true
-            QueryStringCacheKeys: [code]
+            QueryStringCacheKeys:
+              - code
           Compress: true
-          ViewerProtocolPolicy: 'https-only'
-          AllowedMethods: 
-            - "HEAD"
-            - "DELETE"
-            - "POST"
-            - "GET"
-            - "OPTIONS"
-            - "PUT"
-            - "PATCH"
-          CachedMethods: 
-            - "HEAD"
-            - "GET"
-          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6"
-          OriginRequestPolicyId: "216adef6-5c7f-47e4-b989-5492eafa07d3"
+          ViewerProtocolPolicy: https-only
+          AllowedMethods:
+            - HEAD
+            - DELETE
+            - POST
+            - GET
+            - OPTIONS
+            - PUT
+            - PATCH
+          CachedMethods:
+            - HEAD
+            - GET
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
           TargetOriginId: !Ref StreamlitApplicationLoadBalancer
-        PriceClass: "PriceClass_All"
-        Enabled: true                  
-        HttpVersion: "http2"
+        PriceClass: PriceClass_All
+        Enabled: true
+        HttpVersion: http2
         IPV6Enabled: true
-        Logging: 
-          Bucket: !Sub '${LoggingBucket}.s3.amazonaws.com'
+        Logging:
+          Bucket: !Sub ${LoggingBucket}.s3.amazonaws.com
           IncludeCookies: true
           Prefix: !Sub distribution-${EnvironmentName}-logs/
         ViewerCertificate:
@@ -474,7 +510,6 @@ Resources:
         Enabled: true
         AttributeName: ttl
 
-
   ###########################
   ##### Knowledge Base #####
   #########################
@@ -496,22 +531,22 @@ Resources:
               SSEAlgorithm: AES256
 
   DataSourceBucketPolicy:
-    Type: 'AWS::S3::BucketPolicy'
+    Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref DataSourceBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Action:
-              - 's3:*'
+              - s3:*
             Effect: Deny
-            Resource: 
+            Resource:
               - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
               - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
-            Principal: "*"
+            Principal: '*'
             Condition:
               Bool:
-                'aws:SecureTransport': 'false'
+                aws:SecureTransport: 'false'
 
   KnowledgeBaseServiceRole:
     Type: AWS::IAM::Role
@@ -520,19 +555,19 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
               Service:
                 - bedrock.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
+              - sts:AssumeRole
             Condition:
               StringEquals:
                 aws:SourceAccount: !Sub ${AWS::AccountId}
               ArnLike:
                 AWS:SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*
       Policies:
-        - PolicyName: Bedrock
+        - PolicyName: BedrockAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -541,12 +576,12 @@ Resources:
                   - bedrock:ListFoundationModels
                   - bedrock:ListCustomModels
                 Resource:
-                  - "*"
+                  - '*'
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
                 Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1
-        - PolicyName: DataSource
+        - PolicyName: DataSourcePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -560,7 +595,7 @@ Resources:
                 Condition:
                   StringEquals:
                     aws:PrincipalAccount: !Sub ${AWS::AccountId}
-        - PolicyName: OpenSearchServerless
+        - PolicyName: AOSSAPIPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -569,7 +604,7 @@ Resources:
                   - aoss:APIAccessAll
                 Resource:
                   - !Sub arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/${AOSSCollection}
-           
+
   KnowledgeBase:
     DependsOn: StreamlitECSRoleCustomResource
     Type: AWS::Bedrock::KnowledgeBase
@@ -578,7 +613,7 @@ Resources:
       Description: Knowledge base for storing CloudFormation template knowledge
       RoleArn: !GetAtt KnowledgeBaseServiceRole.Arn
       KnowledgeBaseConfiguration:
-        Type: "VECTOR"
+        Type: VECTOR
         VectorKnowledgeBaseConfiguration:
           EmbeddingModelArn: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1
       StorageConfiguration:
@@ -590,7 +625,7 @@ Resources:
             VectorField: cfn-vector-field
             TextField: text
             MetadataField: metadata
-  
+
   DataSource:
     Type: AWS::Bedrock::DataSource
     Properties:
@@ -598,10 +633,11 @@ Resources:
       Name: !Sub DataSource-A2C-${EnvironmentName}
       Description: DataSource for storing CloudFormation template
       DataSourceConfiguration:
-        Type: "S3"
+        Type: S3
         S3Configuration:
           BucketArn: !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
-          InclusionPrefixes: [ingest/]
+          InclusionPrefixes:
+            - ingest/
       VectorIngestionConfiguration:
         ChunkingConfiguration:
           ChunkingStrategy: NONE
@@ -611,68 +647,73 @@ Resources:
   ##########################
 
   AOSSCollection:
-    Type: 'AWS::OpenSearchServerless::Collection'
+    Type: AWS::OpenSearchServerless::Collection
     Properties:
       Name: !Sub aoss${EnvironmentName}
       Type: VECTORSEARCH
-      Description: Amazon OpenSearch Serverless collection for storing CloudFormation knowledge
+      Description: Amazon OpenSearch Serverless collection for storing CloudFormation
+        knowledge
     DependsOn: AOSSCollectionEncryptionPolicy
 
-  
   AOSSCollectionEncryptionPolicy:
-    Type: 'AWS::OpenSearchServerless::SecurityPolicy'
+    Type: AWS::OpenSearchServerless::SecurityPolicy
     Properties:
       Name: !Sub aoss-encryption-policy-${EnvironmentName}
       Type: encryption
       Description: Encryption policy for OpenSearch Serverless
-      Policy: 
-        !Sub 
-          - '{"Rules":[{"ResourceType":"collection","Resource":["collection/${collection}"]}],"AWSOwnedKey":true}'
-          - {collection: !Sub 'aoss${EnvironmentName}'}
+      Policy: !Sub
+        - '{"Rules":[{"ResourceType":"collection","Resource":["collection/${collection}"]}],"AWSOwnedKey":true}'
+        - collection: !Sub aoss${EnvironmentName}
 
   AOSSCollectionAccessPolicy:
-    Type: 'AWS::OpenSearchServerless::AccessPolicy'
+    Type: AWS::OpenSearchServerless::AccessPolicy
     Properties:
       Name: !Sub aoss-access-policy-${EnvironmentName}
       Type: data
       Description: Access policy for OpenSearch Serverless
-      Policy:
-        !Sub 
-          - '[{"Description":"Data Access for KnowledgeBase","Rules":[{"ResourceType":"index","Resource":["index/${collection}/*"],"Permission":["aoss:UpdateIndex","aoss:DescribeIndex","aoss:ReadDocument","aoss:WriteDocument","aoss:CreateIndex"]}],"Principal":["arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseServiceRole}", "${CodeBuildRole}"]}]'
-          - {collection: !Sub 'aoss${EnvironmentName}', CodeBuildRole: !Sub 'arn:aws:iam::${AWS::AccountId}:role/AossCodeBuildExecutionRole-${EnvironmentName}'}
-  
+      Policy: !Sub
+        - '[{"Description":"Data Access for
+          KnowledgeBase","Rules":[{"ResourceType":"index","Resource":["index/${collection}/*"],"Permission":["aoss:UpdateIndex","aoss:DescribeIndex","aoss:ReadDocument","aoss:WriteDocument","aoss:CreateIndex"]}],"Principal":["arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseServiceRole}",
+          "${CodeBuildRole}"]}]'
+        - collection: !Sub aoss${EnvironmentName}
+          CodeBuildRole: !Sub arn:aws:iam::${AWS::AccountId}:role/AossCodeBuildExecutionRole-${EnvironmentName}
+
   AOSSCollectionNetworkPolicy:
-    Type: 'AWS::OpenSearchServerless::SecurityPolicy'
+    Type: AWS::OpenSearchServerless::SecurityPolicy
     Properties:
       Name: !Sub aoss-network-policy-${EnvironmentName}
       Type: network
       Description: Network policy for OpenSearch Serverless
-      Policy:
-        !Sub 
-          - '[{"Description":"Network Access for Amazon Bedrock","AllowFromPublic":true, "Rules": [{"ResourceType":"collection","Resource":["collection/${collection}"]},{"ResourceType":"dashboard","Resource":["collection/${collection}"]}]}]'
-          - {collection: !Sub 'aoss${EnvironmentName}'}
+      Policy: !Sub
+        - '[{"Description":"Network Access for Amazon
+          Bedrock","AllowFromPublic":true, "Rules":
+          [{"ResourceType":"collection","Resource":["collection/${collection}"]},{"ResourceType":"dashboard","Resource":["collection/${collection}"]}]}]'
+        - collection: !Sub aoss${EnvironmentName}
 
   ################################
   #### AoSS Init DataSource #####
   ##############################
-  
+
   AossCodeBuildExecutionRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['AossCodeBuildExecutionRole', !Ref EnvironmentName]]
+      RoleName: !Join
+        - '-'
+        - - AossCodeBuildExecutionRole
+          - !Ref EnvironmentName
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
               Service:
-                - 'codebuild.amazonaws.com'
+                - codebuild.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
+              - sts:AssumeRole
       ManagedPolicyArns:
         - !GetAtt LogsPolicy.PolicyArn
       Policies:
-        - PolicyName: OpenSearchServerless
+        - PolicyName: AOSSAPIPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -681,11 +722,14 @@ Resources:
                   - aoss:APIAccessAll
                 Resource:
                   - !Sub arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/${AOSSCollection}
-  
+
   AossCodeBuild:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Join ['-', ['AossCodeBuild', !Ref EnvironmentName]]
+      Name: !Join
+        - '-'
+        - - AossCodeBuild
+          - !Ref EnvironmentName
       Description: CodeBuild for initializing Aoss index
       Cache:
         Location: LOCAL
@@ -696,25 +740,22 @@ Resources:
       Source:
         Type: GITHUB
         Location: !Ref GitURL
-        BuildSpec: 
-          !Sub
-            - |
-              version: 0.2
-              phases:
-                pre_build:
-                  commands:
-                    - pip3 install awscli
-                    - pip3 install opensearch-py
-                build:
-                  commands:
-                    - echo Build started on `date`
-                    - python3 util/vector_store/create_index.py ${host}
-                post_build:
-                  commands:
-                    - echo Build completed on `date`
-            - {
-                host: !GetAtt AOSSCollection.CollectionEndpoint
-              }
+        BuildSpec: !Sub
+          - |
+            version: 0.2
+            phases:
+              pre_build:
+                commands:
+                  - pip3 install awscli
+                  - pip3 install opensearch-py
+              build:
+                commands:
+                  - echo Build started on `date`
+                  - python3 util/vector_store/create_index.py ${host}
+              post_build:
+                commands:
+                  - echo Build completed on `date`
+          - host: !GetAtt AOSSCollection.CollectionEndpoint
       Environment:
         Type: LINUX_CONTAINER
         Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
@@ -723,14 +764,14 @@ Resources:
       TimeoutInMinutes: 10
       Artifacts:
         Type: NO_ARTIFACTS
-  
+
   AossCodeBuildLogGroup:
     DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/codebuild/${AossCodeBuild}"
+      LogGroupName: !Sub /aws/codebuild/${AossCodeBuild}
       RetentionInDays: 7
-  
+
   ######################
   #### ECS Config #####
   ####################
@@ -738,57 +779,69 @@ Resources:
   StreamlitExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['StreamlitExecutionRole', !Ref EnvironmentName]]
+      RoleName: !Join
+        - '-'
+        - - StreamlitExecutionRole
+          - !Ref EnvironmentName
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
             Principal:
               Service: ecs-tasks.amazonaws.com
-            Action: 'sts:AssumeRole'
+            Action: sts:AssumeRole
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
   StreamlitECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['StreamlitECSTaskRole', !Ref EnvironmentName]]
+      RoleName: !Join ["-", ["StreamlitECSTaskRole", !Ref EnvironmentName]]
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
             Principal:
               Service: ecs-tasks.amazonaws.com
-            Action: 'sts:AssumeRole'
+            Action: sts:AssumeRole
       Policies:
-        - PolicyName: 'SSMAccessPolicy'
+        - PolicyName: SSMAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: 'Allow'
+              - Effect: Allow
                 Action:
-                  - "ssm:GetParameter"
+                  - ssm:GetParameter
                 Resource:
-                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/streamlitapp/${EnvironmentName}/*"
-              - Effect: 'Allow'
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/streamlitapp/${EnvironmentName}/*
+              - Effect: Allow
                 Action:
-                  - "kms:Decrypt"
+                  - kms:Decrypt
                 Resource:
-                  - !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm"
-        - PolicyName: 'BedrockAgentAccessPolicy'
+                  - !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
+        - PolicyName: BedrockFMAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
-            Statement:              
-              - Effect: 'Allow'
+            Statement:
+              - Effect: Allow
                 Action:
-                  - 'bedrock:InvokeAgent'
+                  - bedrock:InvokeModel
+                Resource:
+                  - arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
+        - PolicyName: BedrockAgentAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeAgent
                 Resource:
                   - !GetAtt AgentResource.AgentArn
-        - PolicyName: 'DataBucketAccessPolicy'
+        - PolicyName: DataBucketAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
-            Statement:              
-              - Effect: 'Allow'
+            Statement:
+              - Effect: Allow
                 Action:
-                  - 's3:GetObject'
+                  - s3:GetObject
                 Resource:
                   - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/data/*
         - PolicyName: KnowledgeBasePolicy
@@ -800,6 +853,18 @@ Resources:
                   - bedrock:Retrieve
                 Resource:
                   - !GetAtt KnowledgeBase.KnowledgeBaseArn
+        - PolicyName: DynamoDBPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt DynamoDBTable.Arn
 
   StreamlitLogGroup:
     DeletionPolicy: Retain
@@ -807,52 +872,64 @@ Resources:
     Properties:
       RetentionInDays: 7
 
-  
   ################################
   #### ECS Task and Service #####
   ##############################
 
   StreamlitTaskDefinition:
     Type: AWS::ECS::TaskDefinition
-    Properties: 
-      Family: !Join ['-', ['StreamlitTaskDefinition', !Ref EnvironmentName]]
+    Properties:
+      Family: !Join
+        - '-'
+        - - StreamlitTaskDefinition
+          - !Ref EnvironmentName
       Memory: !Ref Memory
       Cpu: !Ref Cpu
       NetworkMode: awsvpc
       RequiresCompatibilities:
-        - 'FARGATE'
+        - FARGATE
       RuntimePlatform:
-        OperatingSystemFamily: LINUX   
+        OperatingSystemFamily: LINUX
       TaskRoleArn: !GetAtt StreamlitECSTaskRole.Arn
       ExecutionRoleArn: !GetAtt StreamlitExecutionRole.Arn
-      ContainerDefinitions: 
-        - Name: !Join ['-', ['ContainerDefinition', !Ref EnvironmentName]]
+      ContainerDefinitions:
+        - Name: !Join
+            - '-'
+            - - ContainerDefinition
+              - !Ref EnvironmentName
           LogConfiguration:
-            LogDriver: "awslogs"
-            Options: 
+            LogDriver: awslogs
+            Options:
               awslogs-group: !Ref StreamlitLogGroup
               awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: "ecs"
+              awslogs-stream-prefix: ecs
           Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
           PortMappings:
-            - AppProtocol: "http"
+            - AppProtocol: http
               ContainerPort: !Ref ContainerPort
               HostPort: !Ref ContainerPort
-              Name: !Join ['-', ['streamlit', !Ref ContainerPort, 'tcp']]
-              Protocol: "tcp"
+              Name: !Join
+                - '-'
+                - - streamlit
+                  - !Ref ContainerPort
+                  - tcp
+              Protocol: tcp
 
   StreamlitECSService:
-    DependsOn: 
+    DependsOn:
       - StreamlitApplicationLoadBalancer
       - StreamlitALBListenerRule
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: !Join ['-', ['StreamlitECSService', !Ref EnvironmentName]]
+      ServiceName: !Join
+        - '-'
+        - - StreamlitECSService
+          - !Ref EnvironmentName
       Cluster: !Ref StreamlitCluster
       TaskDefinition: !Ref StreamlitTaskDefinition
       DesiredCount: !Ref Task
       LaunchType: FARGATE
-      NetworkConfiguration: 
+      NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
             - !Ref PrivateSubnetAId
@@ -860,10 +937,13 @@ Resources:
           SecurityGroups:
             - !Ref StreamlitContainerSecurityGroup
       LoadBalancers:
-        - ContainerName: !Join ['-', ['ContainerDefinition', !Ref EnvironmentName]]
+        - ContainerName: !Join
+            - '-'
+            - - ContainerDefinition
+              - !Ref EnvironmentName
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref StreamlitContainerTargetGroup
-  
+
   ###########################
   #### ECS AutoScaling #####
   #########################
@@ -873,11 +953,15 @@ Resources:
     Properties:
       MinCapacity: !Ref Min
       MaxCapacity: !Ref Max
-      ResourceId: !Join ['/', [service, !Ref StreamlitCluster, !GetAtt StreamlitECSService.Name]]
+      ResourceId: !Join
+        - /
+        - - service
+          - !Ref StreamlitCluster
+          - !GetAtt StreamlitECSService.Name
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
       RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
-  
+
   StreamlitAutoScalingPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
@@ -897,47 +981,53 @@ Resources:
   ###################################
 
   DataCodeBuildExecutionRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['DataCodeBuildExecutionRole', !Ref EnvironmentName]]
+      RoleName: !Join
+        - '-'
+        - - DataCodeBuildExecutionRole
+          - !Ref EnvironmentName
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
               Service:
-                - 'codebuild.amazonaws.com'
+                - codebuild.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
+              - sts:AssumeRole
       ManagedPolicyArns:
         - !GetAtt LogsPolicy.PolicyArn
       Policies:
-        - PolicyName: DataSourceS3Access
+        - PolicyName: SourceS3AccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: 'Allow'
+              - Effect: Allow
                 Action:
-                  - 's3:PutObject'
-                  - 's3:PutObjectAcl'
-                  - 's3:GetObject'
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
                 Resource:
                   - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
-        - PolicyName: DataSournceAccess
+        - PolicyName: IngestionPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: 'Allow'
+              - Effect: Allow
                 Action:
-                  - 'bedrock:StartIngestionJob'
-                  - 'bedrock:GetIngestionJob'
+                  - bedrock:StartIngestionJob
+                  - bedrock:GetIngestionJob
                 Resource:
                   - !GetAtt KnowledgeBase.KnowledgeBaseArn
 
   DataCodeBuild:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Join ['-', ['DataCodeBuild', !Ref EnvironmentName]]
+      Name: !Join
+        - '-'
+        - - DataCodeBuild
+          - !Ref EnvironmentName
       Description: CodeBuild for initializing S3 data source
       Cache:
         Location: LOCAL
@@ -948,26 +1038,23 @@ Resources:
       Source:
         Type: GITHUB
         Location: !Ref GitURL
-        BuildSpec: 
-          !Sub
-            - |
-              version: 0.2
-              phases:
-                pre_build:
-                  commands:
-                    - pip3 install awscli
-                build:
-                  commands:
-                    - echo Build started on `date`
-                    - python3 data/ingest/ingest.py ${DataBucket} ${KnowledgeBase} ${DataSourceId}
-                post_build:
-                  commands:
-                    - echo Build completed on `date`
-                    - aws s3 cp --recursive util/agent s3://${DataBucket}/agent
-            - {
-                DataBucket: !Sub 'datasource${AWS::AccountId}-${EnvironmentName}',
-                DataSourceId: !GetAtt DataSource.DataSourceId,
-              }
+        BuildSpec: !Sub
+          - |
+            version: 0.2
+            phases:
+              pre_build:
+                commands:
+                  - pip3 install awscli
+              build:
+                commands:
+                  - echo Build started on `date`
+                  - python3 data/ingest/ingest.py ${DataBucket} ${KnowledgeBase} ${DataSourceId}
+              post_build:
+                commands:
+                  - echo Build completed on `date`
+                  - aws s3 cp --recursive util/agent s3://${DataBucket}/agent
+          - DataBucket: !Sub datasource${AWS::AccountId}-${EnvironmentName}
+            DataSourceId: !GetAtt DataSource.DataSourceId
       Environment:
         Type: LINUX_CONTAINER
         Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
@@ -976,18 +1063,18 @@ Resources:
       TimeoutInMinutes: 10
       Artifacts:
         Type: NO_ARTIFACTS
-  
+
   DataCodeBuildLogGroup:
     DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/codebuild/${DataCodeBuild}"
+      LogGroupName: !Sub /aws/codebuild/${DataCodeBuild}
       RetentionInDays: 7
 
   ###################
   ##### Agents #####
   #################
-  
+
   AgentResource:
     DependsOn: StreamlitBuildCustomResource
     Type: AWS::Bedrock::Agent
@@ -995,29 +1082,34 @@ Resources:
       AgentName: !Sub atc-agent-${EnvironmentName}
       AgentResourceRoleArn: !GetAtt AgentRole.Arn
       FoundationModel: !Ref BedrockModelId
-      Instruction: > 
-        You are an expert at writing AWS production-ready CloudFormation templates. Your will obtain a detailed explanation of an architecture diagram from the user.
-        Based on the user's explanation, generate a valid AWS CloudFormation template in YAML format that accurately represents the described architecture. Follow these steps:
-        1. Generate an initial AWS CloudFormation template.
-        2. Iterate over the AWS CloudFormation template, incorporating AWS best practices, to produce an optimized version.
-        3. Validate the CloudFormation template.
-        4. If errors are found, resolve them without validating again.
-        If the user provides update instructions, modify the existing CloudFormation template accordingly to reflect the desired changes. Follow these steps:
-        1. Update the AWS CloudFormation template based on the instructions.
-        2. Iterate over the updated AWS CloudFormation template, incorporating AWS best practices, to produce an optimized version.
-        3. Validate the updated CloudFormation template.
-        4. If errors are found, resolve them without validating again.
-        You can validate cloudformation template as well. 
-      Description: "Agent for Architecture to CloudFormation."
+      Instruction: |
+        You are a task management bot to generate a valid AWS CloudFormation template in YAML based on a user's AWS Architecture diagram explanation. Follow these steps:
+
+        1 Generate an initial CloudFormation template in YAML based on architecture explanation.
+        2. Optimize the template by incorporating AWS best practices.
+        3. Validate the optimized template.
+        4. If errors occur, resolve the errors without validating again.
+
+        If the user provides update instructions:
+
+        1. Update the optimized template based on instructions.
+        2. Optimize the updated template.
+        3. Validate the optimized template.
+        4. If errors occur, resolve the errors without validating again.
+
+        You can validate the template using AWS CloudFormation's validation capabilities.
+
+        After each step, you'll receive a true/false value indicating if the template was generated by the tool.
+      Description: Agent for Architecture to CloudFormation.
       ActionGroups:
         - ActionGroupName: atcActionGroup
-          ActionGroupExecutor: 
+          ActionGroupExecutor:
             Lambda: !GetAtt AgentLambdaFunction.Arn
           ApiSchema:
             S3:
-              S3BucketName: !Sub 'datasource${AWS::AccountId}-${EnvironmentName}'
+              S3BucketName: !Sub datasource${AWS::AccountId}-${EnvironmentName}
               S3ObjectKey: agent/openAPI.json
-  
+
   AgentAliasResource:
     Type: AWS::Bedrock::AgentAlias
     Properties:
@@ -1038,7 +1130,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: BedrockInvokeModel
+        - PolicyName: BedrockInvokeModelPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -1046,7 +1138,7 @@ Resources:
                 Action:
                   - bedrock:InvokeModel
                 Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}
-        - PolicyName: S3Access
+        - PolicyName: S3GetAccessPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -1054,7 +1146,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource: !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/agent/openAPI.json
-    
+
   ########################
   ##### ActionGroup #####
   ######################
@@ -1073,7 +1165,7 @@ Resources:
           EnvironmentName: !Ref EnvironmentName
           KnowledgeBaseId: !Ref KnowledgeBase
       Code:
-        S3Bucket: !Sub 'datasource${AWS::AccountId}-${EnvironmentName}'
+        S3Bucket: !Sub datasource${AWS::AccountId}-${EnvironmentName}
         S3Key: agent/lambda.zip
 
   AgentLambdaRole:
@@ -1091,7 +1183,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: KnowledgeBasePolicy
+        - PolicyName: KnowledgeBaseRetrievePolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -1108,8 +1200,8 @@ Resources:
                 Action:
                   - cloudformation:ValidateTemplate
                 Resource:
-                  - "*"
-        - PolicyName: BedrockPolicy
+                  - '*'
+        - PolicyName: BedrockInvokeModelPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -1128,9 +1220,10 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
                   - dynamodb:DeleteItem
+                  - dynamodb:UpdateItem
                 Resource:
                   - !GetAtt DynamoDBTable.Arn
-        - PolicyName: S3AccessPolicy
+        - PolicyName: S3GetAccessPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -1151,20 +1244,23 @@ Resources:
   ###################################
   ##### CodeBuild Docker Build #####
   #################################
-  
+
   StreamlitCodeBuildExecutionRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['StreamlitInitCodeBuildRole', !Ref EnvironmentName]]
+      RoleName: !Join
+        - '-'
+        - - StreamlitInitCodeBuildRole
+          - !Ref EnvironmentName
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
               Service:
-                - 'codebuild.amazonaws.com'
+                - codebuild.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
+              - sts:AssumeRole
       ManagedPolicyArns:
         - !GetAtt LogsPolicy.PolicyArn
       Policies:
@@ -1172,25 +1268,28 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: 'Allow'
+              - Effect: Allow
                 Action:
-                  - 'ecr:GetAuthorizationToken'
+                  - ecr:GetAuthorizationToken
                 Resource:
                   - '*'
-              - Effect: 'Allow'
+              - Effect: Allow
                 Action:
-                  - 'ecr:UploadLayerPart'
-                  - 'ecr:PutImage'
-                  - 'ecr:InitiateLayerUpload'
-                  - 'ecr:CompleteLayerUpload'
-                  - 'ecr:BatchCheckLayerAvailability'
+                  - ecr:UploadLayerPart
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:CompleteLayerUpload
+                  - ecr:BatchCheckLayerAvailability
                 Resource:
                   - !GetAtt StreamlitImageRepo.Arn
 
   StreamlitCodeBuild:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Join ['-', ['StreamlitInitCodeBuild', !Ref EnvironmentName]]
+      Name: !Join
+        - '-'
+        - - StreamlitInitCodeBuild
+          - !Ref EnvironmentName
       Description: CodeBuild for building image
       Cache:
         Location: LOCAL
@@ -1201,30 +1300,27 @@ Resources:
       Source:
         Type: GITHUB
         Location: !Ref GitURL
-        BuildSpec: 
-          !Sub
-            - |
-              version: 0.2
-              phases:
-                pre_build:
-                  commands:
-                    - pip3 install awscli 
-                    - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
-                build:
-                  commands:
-                    - echo Build started on `date`
-                    - printf '\n' >> Dockerfile
-                    - printf 'ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=${ContainerPort}", "--", "--environmentName", "${EnvironmentName}", "--GitURL", "${GitURL}"]' >> Dockerfile
-                    - cat Dockerfile
-                    - docker build -t ${StreamlitImageRepo} .
-                    - docker tag ${StreamlitImageRepo}:latest ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
-                post_build:
-                  commands:
-                    - echo Build completed on `date`
-                    - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
-            - { 
-                StreamlitImageRepo: !Ref StreamlitImageRepo
-              }
+        BuildSpec: !Sub
+          - |
+            version: 0.2
+            phases:
+              pre_build:
+                commands:
+                  - pip3 install awscli
+                  - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+              build:
+                commands:
+                  - echo Build started on `date`
+                  - printf '\n' >> Dockerfile
+                  - printf 'ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=${ContainerPort}", "--", "--environmentName", "${EnvironmentName}", "--GitURL", "${GitURL}"]' >> Dockerfile
+                  - cat Dockerfile
+                  - docker build -t ${StreamlitImageRepo} .
+                  - docker tag ${StreamlitImageRepo}:latest ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
+              post_build:
+                commands:
+                  - echo Build completed on `date`
+                  - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:latest
+          - StreamlitImageRepo: !Ref StreamlitImageRepo
       Environment:
         Type: LINUX_CONTAINER
         Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
@@ -1233,12 +1329,12 @@ Resources:
       TimeoutInMinutes: 10
       Artifacts:
         Type: NO_ARTIFACTS
-  
+
   StreamlitCodeBuildLogGroup:
     DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/codebuild/${StreamlitCodeBuild}"
+      LogGroupName: !Sub /aws/codebuild/${StreamlitCodeBuild}
       RetentionInDays: 7
 
   #######################################
@@ -1248,21 +1344,24 @@ Resources:
   StreamlitBuildCustomResourceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['BuildResourceRole', !Ref EnvironmentName]]
+      RoleName: !Join
+        - '-'
+        - - BuildResourceRole
+          - !Ref EnvironmentName
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
               Service:
                 - lambda.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
-      Path: "/"
+              - sts:AssumeRole
+      Path: /
       ManagedPolicyArns:
         - !GetAtt LogsPolicy.PolicyArn
       Policies:
-        - PolicyName: CodeBuildPolicys
+        - PolicyName: CodeBuildPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -1273,6 +1372,10 @@ Resources:
                 Resource:
                   - !GetAtt DataCodeBuild.Arn
                   - !GetAtt StreamlitCodeBuild.Arn
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:                  
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -1282,57 +1385,53 @@ Resources:
                 Resource:
                   - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}/*
                   - !Sub arn:aws:s3:::datasource${AWS::AccountId}-${EnvironmentName}
-                    
+
   StreamlitBuildCustomResourceFunction:
-    Type: "AWS::Lambda::Function"
+    Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Join ['-', ['BuildResourceF', !Ref EnvironmentName]]
+      FunctionName: !Join
+        - '-'
+        - - BuildResourceF
+          - !Ref EnvironmentName
       Handler: index.handler
       Role: !GetAtt StreamlitBuildCustomResourceRole.Arn
       Timeout: 600
       Runtime: python3.12
       Code:
-        ZipFile: 
-          !Sub |
-                import boto3
-                from time import sleep
-                import cfnresponse
-
-                codebuild = boto3.client("codebuild")
-                
-                def clean_bucket():
-                  try:
-                    bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCKET'])
-                    bucket.object_versions.delete()
-                    bucket.objects.all().delete()
-                  except Exception as ex:
-                    print(ex)
-
-                def start_codebuild(build_id):
-                  status = 'STARTING'
-
-                  while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
-                    status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
-                    sleep(15)
-                  if status in ['FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
-                    raise Exception("Build failed")
-                  
-                  return
-
-                def handler(event, context):
-                  try:
-                    request_type = event['RequestType']
-                    if request_type == 'Create':
-                      start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['DATAPROJECT'])['build']['id'])
-                      start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['INITPROJECT'])['build']['id'])
-                    elif request_type == 'Delete':
-                      clean_bucket()
-                  except Exception as ex:
-                    print(ex) 
-                    clean_bucket()
-                    cfnresponse.send(event, context, cfnresponse.FAILED, {})
-                  else:
-                    cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+        ZipFile: !Sub |
+          import boto3
+          from time import sleep
+          import cfnresponse
+          codebuild = boto3.client("codebuild")
+          def clean_bucket(event):
+            try:
+              bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCKET'])
+              bucket.object_versions.delete()
+              bucket.objects.all().delete()
+            except Exception as ex:
+              print(ex)
+          def start_codebuild(build_id):
+            status = 'STARTING'
+            while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
+              status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
+              sleep(15)
+            if status in ['FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
+              raise Exception("Build failed")
+            return
+          def handler(event, context):
+            try:
+              request_type = event['RequestType']
+              if request_type == 'Create':
+                start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['DATAPROJECT'])['build']['id'])
+                start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['INITPROJECT'])['build']['id'])
+              elif request_type == 'Delete':
+                clean_bucket(event)
+            except Exception as ex:
+              print(ex)
+              clean_bucket(event)
+              cfnresponse.send(event, context, cfnresponse.FAILED, {})
+            else:
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
 
   StreamlitBuildCustomResource:
     DependsOn: KnowledgeBase
@@ -1350,21 +1449,24 @@ Resources:
   StreamlitCleanCustomResourceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['CleanResourceRole', !Ref EnvironmentName]]
+      RoleName: !Join
+        - '-'
+        - - CleanResourceRole
+          - !Ref EnvironmentName
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
               Service:
                 - lambda.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
-      Path: "/"
+              - sts:AssumeRole
+      Path: /
       ManagedPolicyArns:
         - !GetAtt LogsPolicy.PolicyArn
       Policies:
-        - PolicyName: S3DeleteObject
+        - PolicyName: S3DeleteObjectPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -1379,35 +1481,35 @@ Resources:
                   - !Sub arn:aws:s3:::${DataSourceBucket}
 
   StreamlitCleanCustomResourceFunction:
-    Type: "AWS::Lambda::Function"
+    Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Join ['-', ['CleanResourceF', !Ref EnvironmentName]]
+      FunctionName: !Join
+        - '-'
+        - - CleanResourceF
+          - !Ref EnvironmentName
       Handler: index.handler
       Role: !GetAtt StreamlitCleanCustomResourceRole.Arn
       Timeout: 300
       Runtime: python3.12
       Code:
-        ZipFile: 
-            !Sub 
-              |
-                import boto3
-                from time import sleep
-                import cfnresponse
-                from botocore.exceptions import ClientError
+        ZipFile: |
+          import boto3
+          from time import sleep
+          import cfnresponse
+          from botocore.exceptions import ClientError
+          def handler(event, context):
+            try:
+              request_type = event['RequestType']
+              if request_type == 'Delete':
+                bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCEKT'])
+                bucket.object_versions.delete()
+                bucket.objects.all().delete()
+            except Exception as ex:
+              print(ex)
+              cfnresponse.send(event, context, cfnresponse.FAILED, {})
+            else:
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
 
-                def handler(event, context):
-                  try:
-                    request_type = event['RequestType']
-                    if request_type == 'Delete':
-                      bucket = boto3.resource("s3").Bucket(event['ResourceProperties']['DATABUCEKT'])
-                      bucket.object_versions.delete()
-                      bucket.objects.all().delete()
-                  except Exception as ex:
-                    print(ex)
-                    cfnresponse.send(event, context, cfnresponse.FAILED, {})
-                  else:
-                    cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
-  
   StreamlitCleanCustomResource:
     Type: Custom::BuildCode
     Properties:
@@ -1421,21 +1523,24 @@ Resources:
   StreamlitECSRoleCustomResourceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['-', ['ECSCustomRole', !Ref EnvironmentName]]
+      RoleName: !Join
+        - '-'
+        - - ECSCustomRole
+          - !Ref EnvironmentName
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
               Service:
                 - lambda.amazonaws.com
             Action:
-              - 'sts:AssumeRole'
-      Path: "/"
+              - sts:AssumeRole
+      Path: /
       ManagedPolicyArns:
-        - !GetAtt LogsPolicy.PolicyArn  
+        - !GetAtt LogsPolicy.PolicyArn
       Policies:
-        - PolicyName: IAMCreate
+        - PolicyName: IAMCreatePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -1443,18 +1548,18 @@ Resources:
                 Action:
                   - iam:ListRoles
                 Resource:
-                  - "*"
+                  - '*'
               - Effect: Allow
                 Action:
                   - iam:GetRole
                   - iam:CreateServiceLinkedRole
                   - iam:AttachRolePolicy
                 Resource:
-                  - "*"
+                  - '*'
         - PolicyName: CodeBuildPolicy
           PolicyDocument:
             Version: '2012-10-17'
-            Statement:                  
+            Statement:
               - Effect: Allow
                 Action:
                   - codebuild:StartBuild
@@ -1462,68 +1567,61 @@ Resources:
                 Resource:
                   - !GetAtt AossCodeBuild.Arn
 
-
   StreamlitECSRoleCustomResourceFunction:
-    Type: "AWS::Lambda::Function"
+    Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Join ['-', ['ECSCustomF', !Ref EnvironmentName]]
+      FunctionName: !Join
+        - '-'
+        - - ECSCustomF
+          - !Ref EnvironmentName
       Handler: index.handler
       Role: !GetAtt StreamlitECSRoleCustomResourceRole.Arn
       Timeout: 300
       Runtime: python3.12
       Code:
-        ZipFile: 
-            !Sub 
-              |
-                import boto3
-                from botocore.exceptions import ClientError
-                import cfnresponse
-                from time import sleep
-                iam_client = boto3.client('iam')
-                codebuild = boto3.client("codebuild")
-
-                def start_codebuild(build_id):
-                  status = 'STARTING'
-
-                  while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
-                    status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
-                    sleep(15)
-                  if status in ['FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
-                    raise Exception("Build failed")
-
-                def handler(event, context):
-                    
-                    try:
-                      request_type = event['RequestType']
-                      print(request_type)
-                      if request_type == 'Create':
-                        start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['AOSSPROJECT'])['build']['id'])
-
-                      if request_type == 'Create':
-                        desired_role_name = "AWSServiceRoleForECS"
-
-                        try:
-                          iam_client.get_role(RoleName=desired_role_name)
-                          role_exists = True
-                        except ClientError as e:
-                          if e.response['Error']['Code'] == 'NoSuchEntity':
-                            role_exists = False
-                          else:
-                            role_exists = True
-
-                        print(role_exists)
-                        if not role_exists:
-                          iam_client.create_service_linked_role(AWSServiceName="ecs.amazonaws.com")
-                    except Exception as ex:
-                      print(ex)
-                      cfnresponse.send(event, context, cfnresponse.FAILED, {})
+        ZipFile: |
+          import boto3
+          from botocore.exceptions import ClientError
+          import cfnresponse
+          from time import sleep
+          iam_client = boto3.client('iam')
+          codebuild = boto3.client("codebuild")
+          def start_codebuild(build_id):
+            status = 'STARTING'
+            while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
+              status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
+              sleep(15)
+            if status in ['FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
+              raise Exception("Build failed")
+          def handler(event, context):
+              try:
+                request_type = event['RequestType']
+                print(request_type)
+                if request_type == 'Create':
+                  start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['AOSSPROJECT'])['build']['id'])
+                if request_type == 'Create':
+                  desired_role_name = "AWSServiceRoleForECS"
+                  try:
+                    iam_client.get_role(RoleName=desired_role_name)
+                    role_exists = True
+                  except ClientError as e:
+                    if e.response['Error']['Code'] == 'NoSuchEntity':
+                      role_exists = False
                     else:
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
-  
+                      role_exists = True
+                  print(role_exists)
+                  if not role_exists:
+                    iam_client.create_service_linked_role(AWSServiceName="ecs.amazonaws.com")
+              except Exception as ex:
+                print(ex)
+                cfnresponse.send(event, context, cfnresponse.FAILED, {})
+              else:
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+
   StreamlitECSRoleCustomResource:
     Type: Custom::ECSRole
     Properties:
-      ServiceToken: !GetAtt StreamlitECSRoleCustomResourceFunction.Arn 
+      ServiceToken: !GetAtt StreamlitECSRoleCustomResourceFunction.Arn
       AOSSPROJECT: !Ref AossCodeBuild
 
   ########################################
@@ -1555,5 +1653,5 @@ Resources:
       Description: !Sub SSM parameter for KnowledgeBaseId for ATC ${EnvironmentName}
 Outputs:
   CloudfrontURL:
-    Description: "CloudFront URL"
+    Description: CloudFront URL
     Value: !GetAtt Distribution.DomainName

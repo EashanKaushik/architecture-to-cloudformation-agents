@@ -377,7 +377,18 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: [!GetAtt CleanFunction.Arn, !GetAtt SummarizeFunction.Arn, !GetAtt ActionItemFunction.Arn]
-
+        - PolicyName: XRayAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource:
+                  - "*"
   DataProcessingStateMachine:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:

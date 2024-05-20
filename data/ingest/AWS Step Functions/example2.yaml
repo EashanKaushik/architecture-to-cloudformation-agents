@@ -16,7 +16,7 @@ Resources:
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: DataProcessingTable
+      TableName: !Sub DataProcessingTable-${AWS::StackName}
       AttributeDefinitions:
         - AttributeName: timestamp
           AttributeType: S
@@ -77,7 +77,7 @@ Resources:
   ActionItemDataFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: ActionItemData
+      FunctionName: !Sub ActionItemData-${AWS::StackName}
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !GetAtt ActionItemDataFunctionRole.Arn
@@ -113,7 +113,7 @@ Resources:
   CheckpointDataFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: CheckpointData
+      FunctionName: !Sub CheckpointData-${AWS::StackName}
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !GetAtt CheckpointDataFunctionRole.Arn
@@ -213,7 +213,7 @@ Resources:
   DataProcessingStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      StateMachineName: DataProcessingStateMachine
+      StateMachineName: !Sub DataProcessingStateMachine-${AWS::StackName}
       DefinitionString:
         !Sub
           - |-
@@ -283,7 +283,18 @@ Resources:
                   - !GetAtt SummarizeDataFunction.Arn
                   - !GetAtt ActionItemDataFunction.Arn
                   - !GetAtt CheckpointDataFunction.Arn
-
+        - PolicyName: XRayAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource:
+                  - "*"
 Outputs:
 
   DynamoDBTableName:

@@ -1,14 +1,6 @@
-This AWS architecture diagram depicts a serverless setup involving an AWS Lambda function and Amazon Bedrock.
+This architecture diagram depicts an AWS Lambda function that interacts with Amazon Bedrock. The flow is as follows:
 
-The main component is an AWS Lambda function, represented by the Lambda icon with the label "Task." Lambda functions are serverless compute services that allow you to run code without provisioning or managing servers.
-
-The other component shown is Amazon Bedrock, represented by its logo. Amazon Bedrock is a service that provides a secure and compliant foundation for building and deploying applications on AWS.
-
-The flow of execution in this architecture is as follows:
-
-An event or trigger, such as an API call, a scheduled event, or a data change, initiates the Lambda function.
-The Lambda function executes its code, which may involve processing data, performing calculations, or interacting with other AWS services.
-During its execution, the Lambda function likely interacts with Amazon Bedrock to leverage its secure and compliant foundation for building and deploying applications.
-The purpose of this architecture is to provide a serverless and secure environment for running code or applications. The Lambda function handles the application logic or task, while Amazon Bedrock ensures a secure and compliant foundation for the application's deployment and execution.
-
-This architecture is suitable for various use cases, such as event-driven processing, data transformations, API integrations, or any scenario where you need to run code without managing servers, while also ensuring a secure and compliant infrastructure.
+A client or event triggers the Lambda function.
+The Lambda function executes its code, which likely involves interacting with Amazon Bedrock.
+After interacting with Bedrock, the Lambda function completes its execution and returns a response or performs any necessary follow-up actions.
+This architecture leverages the serverless nature of Lambda functions and Amazon Bedrock, enabling efficient and secure application deployment and management on AWS.
