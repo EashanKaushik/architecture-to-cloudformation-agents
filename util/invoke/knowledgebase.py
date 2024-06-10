@@ -151,6 +151,68 @@ class KnowledgeBase:
             Key={"sessionId": sessionId, "version": version}
         )["Item"]["template"]
 
+    def put_generated_cloudformation(self, sessionId, template):
+        """
+        Stores the generated CloudFormation template in DynamoDB.
+
+        Args:
+            sessionId (str): The ID of the session.
+            template (str): The generated CloudFormation template.
+
+        Returns:
+            bool: True if the template is stored successfully, False otherwise.
+        """
+        try:
+            creationDate = str(
+                int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
+            )
+            ttl = str(
+                int(
+                    (
+                        datetime.datetime.now() + datetime.timedelta(seconds=900)
+                    ).timestamp()
+                )
+            )
+
+            response = st.session_state["TEMPLATE_TABLE"].update_item(
+                Key={"sessionId": sessionId, "version": "v0"},
+                # Atomic counter is used to increment the latest version
+                UpdateExpression="SET Latest = if_not_exists(Latest, :defaultval) + :incrval, #creationDate = :creationDate, #template = :template, #ttl = :ttl",
+                ExpressionAttributeNames={
+                    "#creationDate": "creationDate",
+                    "#template": "template",
+                    "#ttl": "ttl",
+                },
+                ExpressionAttributeValues={
+                    ":creationDate": creationDate,
+                    ":template": template,
+                    ":ttl": ttl,
+                    ":defaultval": 0,
+                    ":incrval": 1,
+                },
+                # return the affected attribute after the update
+                ReturnValues="UPDATED_NEW",
+            )
+
+            # Get the updated version
+            latest_version = response["Attributes"]["Latest"]
+
+            # Add the new item with the latest version
+            st.session_state["TEMPLATE_TABLE"].put_item(
+                Item={
+                    "sessionId": sessionId,
+                    "version": "v" + str(latest_version),
+                    "creationDate": creationDate,
+                    "template": template,
+                    "ttl": ttl,
+                }
+            )
+        except Exception as ex:
+            print(f"Error at put_generated_cloudformation {ex}")
+            return False
+        else:
+            return True
+
     def retrieve_metadata(self, sessionId, query=None):
         """
         Retrieves the metadata from DynamoDB if it exists there, or from the knowledge base if the metadata is not found in DynamoDB.

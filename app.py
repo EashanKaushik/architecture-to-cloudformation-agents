@@ -1,4 +1,5 @@
 import streamlit as st
+from code_editor import code_editor
 
 from argparse import ArgumentParser
 
@@ -34,6 +35,20 @@ bedrock = Bedrock(
 agent = BedrockAgent(environmentName=environmentName)
 knowledgebase = KnowledgeBase(environmentName=environmentName)
 
+st.sidebar.subheader("Session ID")
+st.sidebar.code(agent.get_session_id())
+
+
+def upload_new_template(template, chat_history_index):
+    knowledgebase.put_generated_cloudformation(
+        sessionId=agent.get_session_id(), template=template
+    )
+
+    st.session_state["chat_history"][chat_history_index]["prompt"] = (
+        "```yaml" + template
+    )
+
+
 warning = st.container()
 
 st.title("Architecture to CloudFormation")
@@ -65,7 +80,8 @@ with heading_button_center:
         if "chat_history" not in st.session_state:
             with warning:
                 st.warning(
-                    "Cannot validate, upload architecture diagram first!", icon="⚠️"
+                    "Cannot validate, first upload architecture diagram and invoke agent!",
+                    icon="⚠️",
                 )
         else:
             st.session_state["chat_history"].append(
@@ -92,10 +108,18 @@ with heading_button_center:
 with heading_button_right:
     st.link_button("_Github_ :sunglasses:", GitURL)
 
+disable_file_uploader = False
+
+
+def change_availability(disable_file_uploader):
+    disable_file_uploader = True
+
+
 st.session_state["uploaded_file"] = st.file_uploader(
     "Upload an Architecture diagram to generate AWS CloudFormation code",
     type=["jpeg", "png"],
-    disabled="chat_history" in st.session_state,
+    disabled="uploaded_file" in st.session_state
+    and st.session_state["uploaded_file"] is not None,
 )
 
 # file is uploaded
@@ -114,13 +138,25 @@ if st.session_state["uploaded_file"] is not None:
             st.session_state["uploaded_file"].type,
             explain_placeholder,
         )
+        st.rerun()
     else:
-        explain_placeholder.markdown(
-            st.session_state["explain"], unsafe_allow_html=True
-        )
+        if "user_edit_done" not in st.session_state:
+            with explain_placeholder:
+                st.session_state["explain"] = st.text_area(
+                    label="Step-by-step explain",
+                    value=st.session_state["explain"],
+                    height=500,
+                )
+            if st.button("InvokeAgent", type="primary"):
+                st.session_state["user_edit_done"] = True
+                st.rerun()
+        else:
+            explain_placeholder.markdown(
+                st.session_state["explain"], unsafe_allow_html=True
+            )
 
-if "explain" in st.session_state:
 
+if "user_edit_done" in st.session_state and "explain" in st.session_state:
     if "chat_history" in st.session_state:
 
         for index, chat in enumerate(st.session_state["chat_history"]):
@@ -128,7 +164,56 @@ if "explain" in st.session_state:
                 if chat["role"] == "assistant":
                     col1, col2, col3 = st.columns((5, 4, 1))
 
-                    col1.markdown(chat["prompt"], unsafe_allow_html=True)
+                    if index == len(st.session_state["chat_history"]) - 1:
+
+                        with col1:
+                            custom_btns = [
+                                {
+                                    "name": "Copy",
+                                    "feather": "Copy",
+                                    "hasText": True,
+                                    "alwaysOn": True,
+                                    "commands": [
+                                        "copyAll",
+                                        [
+                                            "infoMessage",
+                                            {
+                                                "text": "Copied to clipboard!",
+                                                "timeout": 2500,
+                                                "classToggle": "show",
+                                            },
+                                        ],
+                                    ],
+                                    "style": {"top": "0.46rem", "right": "0.4rem"},
+                                },
+                                {
+                                    "name": "Submit",
+                                    "feather": "Play",
+                                    "primary": True,
+                                    "hasText": True,
+                                    "showWithIcon": True,
+                                    "commands": ["submit"],
+                                    "style": {"bottom": "0.44rem", "right": "0.4rem"},
+                                },
+                            ]
+
+                            response_dict = code_editor(
+                                chat["prompt"].replace("```yaml", ""),
+                                focus=True,
+                                theme="contrast",
+                                buttons=custom_btns,
+                            )
+
+                            if (
+                                response_dict["type"] == "submit"
+                                and len(response_dict["text"]) != 0
+                            ):
+                                upload_new_template(
+                                    template=response_dict["text"],
+                                    chat_history_index=index,
+                                )
+                    else:
+                        col1.markdown(chat["prompt"], unsafe_allow_html=True)
 
                     if col3.checkbox(
                         "Trace", value=False, key=index, label_visibility="visible"
@@ -167,9 +252,7 @@ if "explain" in st.session_state:
                     "trace": trace_text,
                 }
             )
-
-            col1.markdown("```yaml" + response_text, unsafe_allow_html=True)
-
+            st.rerun()
     if "chat_history" in st.session_state:
         if prompt := st.chat_input("Give the bot update instructions..."):
             st.session_state["chat_history"].append({"role": "human", "prompt": prompt})
@@ -203,7 +286,7 @@ if "explain" in st.session_state:
                     }
                 )
 
-                col1.markdown("```yaml" + response_text, unsafe_allow_html=True)
+                st.rerun()
 
     st.session_state["metadata_uri"] = knowledgebase.retrieve_metadata(
         query=st.session_state["explain"], sessionId=agent.get_session_id()

@@ -5,7 +5,9 @@ from botocore.config import Config
 import streamlit as st
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_community.chat_models import BedrockChat
+
+# from langchain_community.chat_models import BedrockChat
+from langchain_aws import ChatBedrock
 
 import time
 import random
@@ -28,7 +30,7 @@ def invoke_model(model, messages, data_placeholder=None):
         cfn_code += chunk.content
         if data_placeholder:
             with data_placeholder.container():
-                st.write(cfn_code)
+                st.text_area(label="Step-by-step explain", value=cfn_code, height=500)
     return cfn_code
 
 
@@ -130,6 +132,36 @@ class Bedrock:
             HumanMessage(content=human_message),
         ]
 
+    # def get_explain_messages(self, image, image_type):
+    #     """
+    #     Returns the messages for the explain model.
+    #     Args:
+    #         image (BytesIO): The image to explain.
+    #         image_type (str): The type of the image.
+    #     Returns:
+    #         list: The list of messages.
+    #     """
+    #     messages = [
+    #         {
+    #             "role": "user",
+    #             "content": [
+    #                 {
+    #                     "text": self._explain_prompt,
+    #                     "image": {
+    #                         "format": image_type,
+    #                         "source": {
+    #                             "bytes": base64.b64encode(image.getvalue()).decode(
+    #                                 "utf-8"
+    #                             )
+    #                         },
+    #                     },
+    #                 }
+    #             ],
+    #         },
+    #     ]
+
+    #     return messages
+
     def invoke_explain_model(self, image, image_type, data_placeholder):
         """
         Invokes the explain model.
@@ -171,7 +203,7 @@ class Bedrock:
             "stop_sequences": ["\n\nHuman:"],
         }
 
-        return BedrockChat(
+        return ChatBedrock(
             model_id=model_id,
             model_kwargs=model_kwargs,
             client=st.session_state["BEDROCK_RUNTIME_CLIENT"],

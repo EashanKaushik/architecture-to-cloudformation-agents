@@ -2,3 +2,5 @@ streamlit
 boto3
 black
 langchain
+langchain-aws
+streamlit-code-editor
