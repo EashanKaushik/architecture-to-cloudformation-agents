@@ -1590,8 +1590,10 @@ Resources:
           from botocore.exceptions import ClientError
           import cfnresponse
           from time import sleep
+
           iam_client = boto3.client('iam')
           codebuild = boto3.client("codebuild")
+
           def start_codebuild(build_id):
             status = 'STARTING'
             while status not in ['SUCCEEDED', 'FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
@@ -1599,11 +1601,13 @@ Resources:
               sleep(15)
             if status in ['FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
               raise Exception("Build failed")
+              
           def handler(event, context):
               try:
                 request_type = event['RequestType']
                 print(request_type)
                 if request_type == 'Create':
+                  start_codebuild(codebuild.start_build(projectName=event['ResourceProperties']['AOSSPROJECT'])['build']['id'])
                   desired_ecs_role_name = "AWSServiceRoleForECS"
                   desired_ecs_scaling_role_name = "AWSServiceRoleForApplicationAutoScaling_ECSService"
 
