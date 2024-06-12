@@ -12,7 +12,7 @@ from langchain_aws import ChatBedrock
 import time
 import random
 import base64
-
+import uuid
 
 def invoke_model(model, messages, data_placeholder=None):
     """
@@ -34,7 +34,7 @@ def invoke_model(model, messages, data_placeholder=None):
                     label="Step-by-step explain",
                     value=cfn_code,
                     height=500,
-                    key=cfn_code,
+                    key=uuid.uuid4(),
                 )
     return cfn_code
 
