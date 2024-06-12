@@ -146,6 +146,7 @@ if st.session_state["uploaded_file"] is not None:
                     label="Step-by-step explain",
                     value=st.session_state["explain"],
                     height=500,
+                    key="step-by-step-explain-edited",
                 )
             if st.button("InvokeAgent", type="primary"):
                 st.session_state["user_edit_done"] = True

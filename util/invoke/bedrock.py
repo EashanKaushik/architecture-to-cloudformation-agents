@@ -30,7 +30,12 @@ def invoke_model(model, messages, data_placeholder=None):
         cfn_code += chunk.content
         if data_placeholder:
             with data_placeholder.container():
-                st.text_area(label="Step-by-step explain", value=cfn_code, height=500)
+                st.text_area(
+                    label="Step-by-step explain",
+                    value=cfn_code,
+                    height=500,
+                    key=cfn_code,
+                )
     return cfn_code
 
 

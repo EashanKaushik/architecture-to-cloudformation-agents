@@ -633,6 +633,7 @@ Resources:
             MetadataField: metadata
 
   DataSource:
+    DeletionPolicy: Retain
     Type: AWS::Bedrock::DataSource
     Properties:
       KnowledgeBaseId: !Ref KnowledgeBase
@@ -659,7 +660,8 @@ Resources:
       Type: VECTORSEARCH
       Description: Amazon OpenSearch Serverless collection for storing CloudFormation
         knowledge
-    DependsOn: AOSSCollectionEncryptionPolicy
+    DependsOn: 
+      - AOSSCollectionEncryptionPolicy
 
   AOSSCollectionEncryptionPolicy:
     Type: AWS::OpenSearchServerless::SecurityPolicy
@@ -672,6 +674,7 @@ Resources:
         - collection: !Sub aoss${EnvironmentName}
 
   AOSSCollectionAccessPolicy:
+    DeletionPolicy: Retain
     Type: AWS::OpenSearchServerless::AccessPolicy
     Properties:
       Name: !Sub aoss-access-policy-${EnvironmentName}
@@ -683,6 +686,18 @@ Resources:
           "${CodeBuildRole}","${UserRoleArn}"]}]'
         - collection: !Sub aoss${EnvironmentName}
           CodeBuildRole: !Sub arn:aws:iam::${AWS::AccountId}:role/AossCodeBuildExecutionRole-${EnvironmentName}
+  
+  # AOSSCollectionKBAccessPolicy:
+  #   Properties:
+  #     Name: !Sub aoss-access-policy-${EnvironmentName}
+  #     Type: data
+  #     Description: KB Access policy for OpenSearch Serverless
+  #     Policy: !Sub
+  #       - '[{"Description":"Data Access for
+  #         KnowledgeBase","Rules":[{"ResourceType":"index","Resource":["index/${collection}/*"],"Permission":["aoss:DeleteIndex","aoss:UpdateIndex","aoss:DescribeIndex","aoss:ReadDocument","aoss:WriteDocument","aoss:CreateIndex"]},{"ResourceType": "collection","Resource": ["collection/${collection}"],"Permission": ["aoss:CreateCollectionItems","aoss:DeleteCollectionItems", "aoss:UpdateCollectionItems","aoss:DescribeCollectionItems"]}],"Principal":["arn:aws:iam::${AWS::AccountId}:role/${KnowledgeBaseServiceRole}",
+  #         "${CodeBuildRole}","${UserRoleArn}","${KnowledgeBaseServiceRole}"]}]'
+  #       - collection: !Sub aoss${EnvironmentName}
+  #         CodeBuildRole: !Sub arn:aws:iam::${AWS::AccountId}:role/AossCodeBuildExecutionRole-${EnvironmentName}  
 
   AOSSCollectionNetworkPolicy:
     Type: AWS::OpenSearchServerless::SecurityPolicy
@@ -830,6 +845,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
                 Resource:
                   - arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
         - PolicyName: BedrockAgentAccessPolicy
@@ -1601,7 +1617,7 @@ Resources:
               sleep(15)
             if status in ['FAILED', 'STOPPED', 'FAULT', 'TIMED_OUT']:
               raise Exception("Build failed")
-              
+
           def handler(event, context):
               try:
                 request_type = event['RequestType']
