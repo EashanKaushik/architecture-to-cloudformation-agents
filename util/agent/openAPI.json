@@ -28,8 +28,9 @@
                   "schema": {
                     "type": "object",
                     "properties": {
-                      "cloudformationTemplate": {
+                      "CloudformationTemplate": {
                         "type": "boolean",
+                        "example": true,
                         "description": "Confirmation that AWS CloudFormation template generated successfully"
                       }
                     }
@@ -56,7 +57,8 @@
                     "properties": {
                       "isValid": {
                         "type": "boolean",
-                        "description": "Indicates whether the AWS CloudFormation template is valid or not"
+                        "description": "Indicates whether the AWS CloudFormation template is valid or not",
+                        "required": true
                       },
                       "error": {
                         "type": "string",
@@ -95,8 +97,9 @@
                   "schema": {
                     "type": "object",
                     "properties": {
-                      "updatedCloudformationTemplate": {
+                      "reiteratedCloudformationTemplate": {
                         "type": "boolean",
+                        "example": true,
                         "description": "Confirmation that AWS CloudFormation template reiterated successfully"
                       }
                     }
@@ -112,7 +115,7 @@
       },
       "/updateCloudFormation": {
         "get": {
-          "description": "Update instruction provided by the user to change AWS CloudFormation template",
+          "description": "Update CloudFormation stack based on instruction provided by the user.",
           "parameters": [
             {
               "name": "updateInstruction",
@@ -143,6 +146,7 @@
                     "properties": {
                       "updatedCloudformationTemplate": {
                         "type": "boolean",
+                        "example": true,
                         "description": "Confirmation that AWS CloudFormation template updated successfully"
                       }
                     }
@@ -156,15 +160,15 @@
           }
         }
       },
-      "/resolveError": {
+      "/resolveCloudFormation": {
         "get": {
-          "description": "Resolve error to generate a new AWS CloudFormation template",
+          "description": "Resolve cloudformation template error to generate a new AWS CloudFormation template",
           "parameters": [
             {
-              "name": "errorInstruction",
+              "name": "cloudformationInstruction",
               "in": "query",
               "required": true,
-              "description": "Error instruction to update AWS CloudFormation template",
+              "description": "CloudFormation instruction to update AWS CloudFormation template",
               "schema": {
                 "type": "string"
               }
@@ -189,6 +193,7 @@
                     "properties": {
                       "updatedCloudformationTemplate": {
                         "type": "boolean",
+                        "example": true,
                         "description": "Confirmation that AWS CloudFormation template updated successfully"
                       }
                     }
