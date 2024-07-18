@@ -38,8 +38,37 @@
                 }
               }
             },
-            "400": {
-                "description": "Bad request. One or more required fields are missing or invalid."
+            "404": {
+              "description": "Bad request. One or more required fields are missing or invalid.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "423": {
+              "description": "The source or destination resource of a method is locked. Control should be returned to user.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -57,8 +86,7 @@
                     "properties": {
                       "isValid": {
                         "type": "boolean",
-                        "description": "Indicates whether the AWS CloudFormation template is valid or not",
-                        "required": true
+                        "description": "Indicates whether the AWS CloudFormation template is valid or not"
                       },
                       "error": {
                         "type": "string",
@@ -69,8 +97,37 @@
                 }
               }
             },
-            "400": {
-                "description": "Bad request. One or more required fields are missing or invalid."
+            "404": {
+              "description": "Bad request. One or more required fields are missing or invalid.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "423": {
+              "description": "The source or destination resource of a method is locked. Control should be returned to user.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -78,17 +135,6 @@
       "/reiterateCloudFormation": {
         "get": {
           "description": "Iteratively refine the generated AWS CloudFormation template, incorporating AWS best practices, to produce an optimized version of the CloudFormation template.",
-          "parameters": [
-            {
-              "name": "architectureExplanation",
-              "in": "query",
-              "required": true,
-              "description": "Architecture explanation provided by the user",
-              "schema": {
-                "type": "string"
-              }
-            }
-          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -107,8 +153,37 @@
                 }
               }
             },
-            "400": {
-                "description": "Bad request. One or more required fields are missing or invalid."
+            "404": {
+              "description": "Bad request. One or more required fields are missing or invalid.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "423": {
+              "description": "The source or destination resource of a method is locked. Control should be returned to user.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -125,15 +200,6 @@
               "schema": {
                 "type": "string"
               }
-            },
-            {
-              "name": "architectureExplanation",
-              "in": "query",
-              "required": true,
-              "description": "Architecture explanation provided by the user",
-              "schema": {
-                "type": "string"
-              }
             }
           ],
           "responses": {
@@ -154,8 +220,37 @@
                 }
               }
             },
-            "400": {
-                "description": "Bad request. One or more required fields are missing or invalid."
+            "404": {
+              "description": "Bad request. One or more required fields are missing or invalid.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "423": {
+              "description": "The source or destination resource of a method is locked. Control should be returned to user.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -172,15 +267,6 @@
               "schema": {
                 "type": "string"
               }
-            },
-            {
-              "name": "architectureExplanation",
-              "in": "query",
-              "required": true,
-              "description": "Architecture explanation provided by the user",
-              "schema": {
-                "type": "string"
-              }
             }
           ],
           "responses": {
@@ -201,8 +287,37 @@
                 }
               }
             },
-            "400": {
-                "description": "Bad request. One or more required fields are missing or invalid."
+            "404": {
+              "description": "Bad request. One or more required fields are missing or invalid.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "423": {
+              "description": "The source or destination resource of a method is locked. Control should be returned to user.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error_message": {
+                        "type": "string",
+                        "description": "Error message"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }

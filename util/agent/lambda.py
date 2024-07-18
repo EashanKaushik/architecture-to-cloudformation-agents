@@ -17,6 +17,7 @@ sys.path.insert(0, "/tmp/")
 
 from botocore.exceptions import ClientError, ValidationError
 from boto3.session import Session
+from botocore.config import Config
 
 import random
 import time
@@ -28,7 +29,7 @@ EnvironmentName = os.environ["EnvironmentName"]
 summary_modelId = "anthropic.claude-3-haiku-20240307-v1:0"
 generate_modeId = "anthropic.claude-3-sonnet-20240229-v1:0"
 
-bedrock = Session().client("bedrock-runtime")
+bedrock = Session().client("bedrock-runtime", config=Config(read_timeout=600, connect_timeout=600))
 cfn = Session().client("cloudformation")
 bedrock_agent = Session().client("bedrock-agent-runtime")
 s3 = Session().client("s3")
@@ -54,9 +55,9 @@ def invoke_model(modelId, system_prompt, messages):
     response = bedrock.converse(
         modelId=modelId,
         messages=messages,
-        system=[{'text': system_prompt}],
-        inferenceConfig={'temperature': 0.0, 'maxTokens': 4000},
-        )
+        system=[{"text": system_prompt}],
+        inferenceConfig={"temperature": 0.0, "maxTokens": 4000},
+    )
     return response["output"]["message"]["content"][0]["text"]
 
 
@@ -96,6 +97,7 @@ def backoff_mechanism(func, modelId, system_prompt, messages):
 ##### Cache and KB #####
 #######################
 
+
 def put_validity_cloudformation(sessionId, template, is_valid):
     """
     Stores the validity of a CloudFormation template in DynamoDB.
@@ -119,12 +121,12 @@ def put_validity_cloudformation(sessionId, template, is_valid):
         response = table.update_item(
             Key={"sessionId": sessionId, "version": "v0"},
             # Atomic counter is used to increment the latest version
-            UpdateExpression="SET Latest = if_not_exists(Latest, :defaultval) + :incrval, #creationDate = :creationDate, #template = :template, #ttl = :ttl",
+            UpdateExpression="SET Latest = if_not_exists(Latest, :defaultval) + :incrval, #creationDate = :creationDate, #template = :template, #ttl = :ttl, #is_valid = :is_valid",
             ExpressionAttributeNames={
                 "#creationDate": "creationDate",
                 "#template": "template",
                 "#ttl": "ttl",
-                "#is_valid": "is_valid"
+                "#is_valid": "is_valid",
             },
             ExpressionAttributeValues={
                 ":creationDate": creationDate,
@@ -158,6 +160,7 @@ def put_validity_cloudformation(sessionId, template, is_valid):
     else:
         return True
 
+
 def put_generated_cloudformation(sessionId, template):
     """
     Stores the generated CloudFormation template in DynamoDB.
@@ -180,11 +183,12 @@ def put_generated_cloudformation(sessionId, template):
         response = table.update_item(
             Key={"sessionId": sessionId, "version": "v0"},
             # Atomic counter is used to increment the latest version
-            UpdateExpression="SET Latest = if_not_exists(Latest, :defaultval) + :incrval, #creationDate = :creationDate, #template = :template, #ttl = :ttl",
+            UpdateExpression="SET Latest = if_not_exists(Latest, :defaultval) + :incrval, #creationDate = :creationDate, #template = :template, #ttl = :ttl, #is_valud = :is_valid",
             ExpressionAttributeNames={
                 "#creationDate": "creationDate",
                 "#template": "template",
                 "#ttl": "ttl",
+                "#is_valud": "is_valid",
             },
             ExpressionAttributeValues={
                 ":creationDate": creationDate,
@@ -192,6 +196,7 @@ def put_generated_cloudformation(sessionId, template):
                 ":ttl": ttl,
                 ":defaultval": 0,
                 ":incrval": 1,
+                ":is_valid": None,
             },
             # return the affected attribute after the update
             ReturnValues="UPDATED_NEW",
@@ -343,39 +348,39 @@ def retrieve_yaml(sessionId, query=None):
 #############################
 
 
-def get_new_architecture_explaination(architectureExplanation, updateInstruction):
-    """
-    Generating new architecture explaination integration update instruction.
+# def get_new_architecture_explaination(architectureExplanation, updateInstruction):
+#     """
+#     Generating new architecture explaination integration update instruction.
 
-     Args:
-         architectureExplanation (str): Current architecture explanation.
-         updateInstruction (str): Update instruction to update current CloudFormation template.
+#      Args:
+#          architectureExplanation (str): Current architecture explanation.
+#          updateInstruction (str): Update instruction to update current CloudFormation template.
 
-     Returns:
-         str: New architecture explanation.
-    """
+#      Returns:
+#          str: New architecture explanation.
+#     """
 
-    _system_prompt = """
-        List all the AWS Services in the document. Do output anything else.
-    """
-    _prompt = f"""
-        <para1>
-        {architectureExplanation}
-        </para1>
+#     _system_prompt = """
+#         List all the AWS Services in the document. Do output anything else.
+#     """
+#     _prompt = f"""
+#         <para1>
+#         {architectureExplanation}
+#         </para1>
 
-        <para2>
-        {updateInstruction}
-        </para2>
-    """
+#         <para2>
+#         {updateInstruction}
+#         </para2>
+#     """
 
-    _messages = [{"role": "user", "content": [{"text": _prompt}]}]
-    # func, modelId, system_prompt, messages
-    return backoff_mechanism(
-        func=invoke_model,
-        modelId=summary_modelId,
-        system_prompt=_system_prompt,
-        messages=_messages,
-    )
+#     _messages = [{"role": "user", "content": [{"text": _prompt}]}]
+#     # func, modelId, system_prompt, messages
+#     return backoff_mechanism(
+#         func=invoke_model,
+#         modelId=summary_modelId,
+#         system_prompt=_system_prompt,
+#         messages=_messages,
+#     )
 
 
 def get_summary_document(explain):
@@ -423,16 +428,14 @@ def generate_cloudformation(architectureExplanation, sessionId):
         bool: Indicating if the template was generated successfully.
     """
     try:
-    
-        documents = retrieve_yaml(
-            sessionId=sessionId, query=architectureExplanation
-        )
-    
+
+        documents = retrieve_yaml(sessionId=sessionId, query=architectureExplanation)
+
         _system_prompt = """
             You are an expert AWS CloudFormation developer. Your task is to convert instuctions to valid CloudFormation template in YAML format.
             Accept step-by-step explaination of the AWS Architecture encapsulated between <explain></explain> XML tags and generate its CloudFormation code. 
         """
-    
+
         _prompt = f"""
                 
             Create CLoudFormation code only for AWS Servies present in <explain></explain>
@@ -479,14 +482,14 @@ def generate_cloudformation(architectureExplanation, sessionId):
             system_prompt=_system_prompt,
             messages=_messages,
         )
-    
+
         if not generated_cloudformation_stack:
             return False, f"Bedrock call was unsuccessful"
-    
+
         if put_generated_cloudformation(
             sessionId=sessionId, template=generated_cloudformation_stack
         ):
-            return True, {'CloudformationTemplate': True}
+            return True, {"CloudformationTemplate": True}
         else:
             return False, f"Template storage unsuccessful"
 
@@ -516,28 +519,28 @@ def validate_cloudformtaion(sessionId):
         response = cfn.validate_template(
             TemplateBody=cloudformationTemplate,
         )
-    except ValidationError as ex:
+    except Exception as ex:
         print(f"Cloudformation template invalid: {ex}")
         validation_errors = f"Cloudformation template invalid: {ex}"
         is_valid = False
-    except Exception as ex:
-        return False, ex
     else:
         is_valid = True
         print("Cloudformation valid")
 
-    if put_validity_cloudformation(sessionId=sessionId, template=cloudformationTemplate, is_valid=is_valid):
+    if put_validity_cloudformation(
+        sessionId=sessionId, template=cloudformationTemplate, is_valid=is_valid
+    ):
         return True, {"isValid": is_valid, "error": str(validation_errors)}
     else:
         return False, f"Template storage unsuccessful"
-        
+
 
 ##########################
 ##### Reiterate CFN #####
 ########################
 
 
-def reiterate_cloudformation(architectureExplanation, sessionId):
+def reiterate_cloudformation(sessionId):
     """
     Reiterates the CloudFormation template stored in version vo (latest) in DynamoDB. Stores the new generated template in DynamoDB.
 
@@ -549,12 +552,9 @@ def reiterate_cloudformation(architectureExplanation, sessionId):
     """
     try:
 
-        cloudformationTemplate = get_generated_cloudformation(
-            sessionId=sessionId
-        )
+        cloudformationTemplate = get_generated_cloudformation(sessionId=sessionId)
 
         documents = retrieve_yaml(
-            query=architectureExplanation,
             sessionId=sessionId,
         )
         _system_prompt = f"""
@@ -611,7 +611,9 @@ def reiterate_cloudformation(architectureExplanation, sessionId):
         if not updated_cloudformation:
             return False, f"Bedrock call was unsuccessful"
 
-        if put_generated_cloudformation(sessionId=sessionId, template=updated_cloudformation):
+        if put_generated_cloudformation(
+            sessionId=sessionId, template=updated_cloudformation
+        ):
             return True, {"reiteratedCloudformationTemplate": True}
         else:
             return False, "Template storage unsuccessful"
@@ -622,7 +624,7 @@ def reiterate_cloudformation(architectureExplanation, sessionId):
 #####################
 
 
-def update_cloudformation(updateInstruction, architectureExplanation, sessionId):
+def update_cloudformation(updateInstruction, sessionId):
     """
     Updates the CloudFormation template stored in version vo (latest) in DynamoDB. Stores the new generated template in DynamoDB.
 
@@ -634,25 +636,21 @@ def update_cloudformation(updateInstruction, architectureExplanation, sessionId)
     """
     try:
 
-        cloudformationTemplate = get_generated_cloudformation(
-            sessionId=sessionId
-        )
-        table.delete_item(
-            Key={
-                "sessionId": sessionId,
-                "version": "METADATA",
-            },
-        )
-        newArchitectureExplanation = get_new_architecture_explaination(
-            architectureExplanation, updateInstruction
-        )
+        cloudformationTemplate = get_generated_cloudformation(sessionId=sessionId)
+        # table.delete_item(
+        #     Key={
+        #         "sessionId": sessionId,
+        #         "version": "METADATA",
+        #     },
+        # )
+        # newArchitectureExplanation = get_new_architecture_explaination(
+        #     architectureExplanation, updateInstruction
+        # )
 
-        if not newArchitectureExplanation:
-            return False, "Could not generate new architecture explanation"
+        # if not newArchitectureExplanation:
+        #     return False, "Could not generate new architecture explanation"
 
-        documents = retrieve_yaml(
-            sessionId=sessionId, query=newArchitectureExplanation
-        )
+        documents = retrieve_yaml(sessionId=sessionId, query=None)
 
         _system_prompt = """
             You are an expert AWS CloudFormation developer tasked with updating CloudFormation code given in YAML format.
@@ -713,8 +711,10 @@ def update_cloudformation(updateInstruction, architectureExplanation, sessionId)
         )
         if not updated_cloudformation:
             return False, "Bedrock call was unsuccessful"
-        
-        if put_generated_cloudformation(sessionId=sessionId, template=updated_cloudformation):
+
+        if put_generated_cloudformation(
+            sessionId=sessionId, template=updated_cloudformation
+        ):
             return True, {"updatedCloudformationTemplate": True}
         else:
             return False, "Template storage unsuccessful"
@@ -725,7 +725,7 @@ def update_cloudformation(updateInstruction, architectureExplanation, sessionId)
 ########################
 
 
-def resolve_cloudformation(error, architectureExplanation, sessionId):
+def resolve_cloudformation(cloudformationInstruction, sessionId):
     """
     Resolves the error message stored in version vo (latest) in DynamoDB. Stores the new generated template in DynamoDB.
 
@@ -737,13 +737,9 @@ def resolve_cloudformation(error, architectureExplanation, sessionId):
     """
     try:
 
-        cloudformationTemplate = get_generated_cloudformation(
-            sessionId=sessionId
-        )
+        cloudformationTemplate = get_generated_cloudformation(sessionId=sessionId)
 
-        documents = retrieve_yaml(
-            sessionId=sessionId, query=architectureExplanation
-        )
+        documents = retrieve_yaml(sessionId=sessionId, query=None)
         _system_prompt = """
         You are an AWS CloudFormation expert skilled in analyzing and troubleshooting CloudFormation templates. Your task is as follows:
 
@@ -768,7 +764,7 @@ def resolve_cloudformation(error, architectureExplanation, sessionId):
         </cloudformation>
 
         <error>
-        {error}
+        {cloudformationInstruction}
         </error>
         
         Once you have completed the updates, you will output only the revised CloudFormation YAML template without ```yaml ```. Skip the preamble. Think step-by-step. 
@@ -809,7 +805,9 @@ def resolve_cloudformation(error, architectureExplanation, sessionId):
         )
         if not updated_cloudformation:
             return False, "Bedrock call was unsuccessful"
-        if put_generated_cloudformation(sessionId=sessionId, template=updated_cloudformation):
+        if put_generated_cloudformation(
+            sessionId=sessionId, template=updated_cloudformation
+        ):
             return True, {"updatedCloudformationTemplate": True}
         else:
             return False, "Template storage unsuccessful"
@@ -827,77 +825,131 @@ def lambda_handler(event, context):
     action_group = event["actionGroup"]
     api_path = event["apiPath"]
     http_method = event["httpMethod"]
-    parameters = event.get('parameters', [])
-    if api_path == "/generateCloudFormation":
-        
-        for param in parameters:
-            if param['name'] == 'architectureExplanation':
-                architectureExplanation = param['value']
-                
-        if not architectureExplanation:
-            raise Exception("Missing mandatory parameter: architectureExplanation")
-        
-        valid, result = generate_cloudformation(architectureExplanation=architectureExplanation, sessionId=event["sessionId"])
-        
-    elif api_path == "/validateCloudFormation":
-        
-        valid, result = validate_cloudformtaion(sessionId=event["sessionId"])
-        
-    elif api_path == "/reiterateCloudFormation":
-        for param in parameters:
-            if param['name'] == 'architectureExplanation':
-                architectureExplanation = param['value']
-                
-        if not architectureExplanation:
-            raise Exception("Missing mandatory parameter: architectureExplanation")
-        
-        valid, result = reiterate_cloudformation(architectureExplanation=architectureExplanation, sessionId=event["sessionId"])
-        
-    elif api_path == "/updateCloudFormation":
-         
-        for param in parameters:
-            if param['name'] == 'updateInstruction':
-                updateInstruction = param['value']
-            if param['name'] == 'architectureExplanation':
-                architectureExplanation = param['value']
-        
-        if not architectureExplanation:
-            raise Exception("Missing mandatory parameter: architectureExplanation")
-        
-        if not updateInstruction:
-            raise Exception("Missing mandatory parameter: updateInstruction")
-        
-        valid, result = update_cloudformation(updateInstruction=updateInstruction, architectureExplanation=architectureExplanation, sessionId=event["sessionId"])
-    elif api_path == "/resolveCloudFormation":
-        for param in parameters:
-            if param['name'] == 'error':
-                error = param['value']
-            if param['name'] == 'architectureExplanation':
-                architectureExplanation = param['value']
-        
-        if not architectureExplanation:
-            raise Exception("Missing mandatory parameter: architectureExplanation")
-        
-        if not error:
-            raise Exception("Missing mandatory parameter: error")
-        
-        valid, result = resolve_cloudformation(error=error, architectureExplanation=architectureExplanation, sessionId=event["sessionId"])
+    parameters = event.get("parameters", [])
+    session_attributes = event.get("sessionAttributes", {})
+    validate_counter = int(session_attributes.get("validate_counter", ""))
+
+    architectureExplanation, updateInstruction, cloudformationInstruction = (
+        None,
+        None,
+        None,
+    )
+
+    if validate_counter == 0 or validate_counter == 1:
+
+        if api_path == "/generateCloudFormation":
+
+            for param in parameters:
+                if param["name"] == "architectureExplanation":
+                    architectureExplanation = param["value"]
+
+            if not architectureExplanation:
+                valid, result = (
+                    False,
+                    "Missing mandatory parameter: architectureExplanation",
+                )
+            else:
+                valid, result = generate_cloudformation(
+                    architectureExplanation=architectureExplanation,
+                    sessionId=event["sessionId"],
+                )
+
+        elif api_path == "/validateCloudFormation":
+            validate_counter += 1
+
+            valid, result = validate_cloudformtaion(sessionId=event["sessionId"])
+
+        elif api_path == "/reiterateCloudFormation":
+            # for param in parameters:
+            #     if param["name"] == "architectureExplanation":
+            #         architectureExplanation = param["value"]
+
+            # if not architectureExplanation:
+            #     valid, result = (
+            #         False,
+            #         "Missing mandatory parameter: architectureExplanation",
+            #     )
+            # else:
+            valid, result = reiterate_cloudformation(
+                # architectureExplanation=architectureExplanation,
+                sessionId=event["sessionId"],
+            )
+
+        elif api_path == "/updateCloudFormation":
+
+            for param in parameters:
+                if param["name"] == "updateInstruction":
+                    updateInstruction = param["value"]
+                # if param["name"] == "architectureExplanation":
+                #     architectureExplanation = param["value"]
+
+            # if not architectureExplanation:
+            #     valid, result = (
+            #         False,
+            #         "Missing mandatory parameter: architectureExplanation",
+            #     )
+            if not updateInstruction:
+                valid, result = False, "Missing mandatory parameter: updateInstruction"
+            else:
+                valid, result = update_cloudformation(
+                    updateInstruction=updateInstruction,
+                    # architectureExplanation=architectureExplanation,
+                    sessionId=event["sessionId"],
+                )
+        elif api_path == "/resolveCloudFormation":
+            for param in parameters:
+                if param["name"] == "cloudformationInstruction":
+                    cloudformationInstruction = param["value"]
+                # if param["name"] == "architectureExplanation":
+                #     architectureExplanation = param["value"]
+
+            # if not architectureExplanation:
+            #     valid, result = (
+            #         False,
+            #         "Missing mandatory parameter: architectureExplanation",
+            #     )
+            if not cloudformationInstruction:
+                valid, result = (
+                    False,
+                    "Missing mandatory parameter: cloudformationInstruction",
+                )
+            else:
+                valid, result = resolve_cloudformation(
+                    cloudformationInstruction=cloudformationInstruction,
+                    # architectureExplanation=architectureExplanation,
+                    sessionId=event["sessionId"],
+                )
+        else:
+            valid, result = False, f"Unrecognized api path: {action_group}::{api_path}"
     else:
-        raise Exception(f"Unrecognized api path: {action_group}::{api_path}")
-        
-    
+        response_code = 423
+        valid, result = (
+            True,
+            f"/validateCloudFormation has been called twice returning control",
+        )
+
     if not valid:
-        raise Exception(f"Api path {action_group}::{api_path} returned an error: {error}")
+        response_code = 404
+        response_body = {
+            "application/json": {
+                "body": {
+                    "error_message": f"Api path {action_group}::{api_path} returned an error: {result}"
+                }
+            }
+        }
+    else:
+        response_body = {"application/json": {"body": result}}
 
-    response_body = {"application/json": {"body": result}}
-
-    action_response = {
+    response = {
         "actionGroup": action_group,
         "apiPath": api_path,
         "httpMethod": http_method,
         "httpStatusCode": response_code,
         "responseBody": response_body,
+        "sessionState": {
+            "sessionAttributes": {"validate_counter": str(validate_counter)},
+        },
     }
 
-    api_response = {"messageVersion": "1.0", "response": action_response}
+    api_response = {"messageVersion": "1.0", "response": response}
     return api_response

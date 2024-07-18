@@ -1,6 +1,6 @@
 streamlit
 boto3
+botocore
 black
-langchain
-langchain-aws
+Jinja2
 streamlit-code-editor

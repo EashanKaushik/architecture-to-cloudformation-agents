@@ -2,6 +2,7 @@ import streamlit as st
 from code_editor import code_editor
 
 from argparse import ArgumentParser
+import json
 
 from util.invoke import Bedrock, BedrockAgent, KnowledgeBase
 from util.assets import download_button, read_image, download_cfn
@@ -48,6 +49,8 @@ def upload_new_template(template, chat_history_index):
         "```yaml" + template
     )
 
+    st.session_state["chat_history"][chat_history_index]["is_valid"] = None
+
 
 warning = st.container()
 
@@ -68,10 +71,12 @@ with heading_button_left:
 
         if "metadata_uri" in st.session_state:
             del st.session_state["metadata_uri"]
+        
+        if "user_edit_done" in st.session_state:
+            del st.session_state["user_edit_done"]
 
         agent.new_session()
         knowledgebase.new_session()
-        bedrock.new_session()
         st.rerun()
 
 
@@ -97,11 +102,16 @@ with heading_button_center:
                 sessionId=agent.get_session_id()
             )
 
+            is_valid = knowledgebase.get_generated_cloudformation(
+                sessionId=agent.get_session_id(), key="is_valid"
+            )
+
             st.session_state["chat_history"].append(
                 {
                     "role": "assistant",
                     "prompt": "```yaml" + response_text,
                     "trace": trace_text,
+                    "is_valid": is_valid,
                 }
             )
 
@@ -135,7 +145,7 @@ if st.session_state["uploaded_file"] is not None:
     if "explain" not in st.session_state:
         st.session_state["explain"] = bedrock.invoke_explain_model(
             st.session_state["uploaded_file"],
-            st.session_state["uploaded_file"].type,
+            st.session_state["uploaded_file"].type.replace("image/", ""),
             explain_placeholder,
         )
         st.rerun()
@@ -152,9 +162,14 @@ if st.session_state["uploaded_file"] is not None:
                 st.session_state["user_edit_done"] = True
                 st.rerun()
         else:
-            explain_placeholder.markdown(
-                st.session_state["explain"], unsafe_allow_html=True
-            )
+            with explain_placeholder:
+                st.text_area(
+                    label="Step-by-step explain",
+                    value=st.session_state["explain"],
+                    height=500,
+                    key="step-by-step-explain-edited",
+                    disabled=True,
+                )
 
 
 if "user_edit_done" in st.session_state and "explain" in st.session_state:
@@ -163,64 +178,110 @@ if "user_edit_done" in st.session_state and "explain" in st.session_state:
         for index, chat in enumerate(st.session_state["chat_history"]):
             with st.chat_message(chat["role"]):
                 if chat["role"] == "assistant":
-                    col1, col2, col3 = st.columns((5, 4, 1))
+                    # col1, col2 = st.columns((7, 3))
+                    # with col2:
+                    if chat["is_valid"]:
+                        st.success("CloudFormation template is valid!")
+                    elif chat["is_valid"] is False:
+                        st.error("CloudFormation template is not valid!")
+                    else:
+                        st.warning(
+                            "Unable to determine if CloudFormation template is valid or not!"
+                        )
+                    for trace in chat["trace"]:
+                        with st.expander(trace["heading"]):
+                            if (
+                                "rationale" in trace["category"]
+                                or "failureTrace" in trace["category"]
+                            ):
+                                st.write(trace["content"])
+                            else:
+                                st.code(trace["content"])
 
                     if index == len(st.session_state["chat_history"]) - 1:
 
-                        with col1:
-                            custom_btns = [
-                                {
-                                    "name": "Copy",
-                                    "feather": "Copy",
-                                    "hasText": True,
-                                    "alwaysOn": True,
-                                    "commands": [
-                                        "copyAll",
-                                        [
-                                            "infoMessage",
-                                            {
-                                                "text": "Copied to clipboard!",
-                                                "timeout": 2500,
-                                                "classToggle": "show",
-                                            },
-                                        ],
+                        # with col1:
+                        custom_btns = [
+                            {
+                                "name": "Copy",
+                                "feather": "Copy",
+                                "hasText": True,
+                                "alwaysOn": True,
+                                "commands": [
+                                    "copyAll",
+                                    [
+                                        "infoMessage",
+                                        {
+                                            "text": "Copied to clipboard!",
+                                            "timeout": 2500,
+                                            "classToggle": "show",
+                                        },
                                     ],
-                                    "style": {"top": "0.46rem", "right": "0.4rem"},
-                                },
-                                {
-                                    "name": "Submit",
-                                    "feather": "Play",
-                                    "primary": True,
-                                    "hasText": True,
-                                    "showWithIcon": True,
-                                    "commands": ["submit"],
-                                    "style": {"bottom": "0.44rem", "right": "0.4rem"},
-                                },
-                            ]
+                                ],
+                                "style": {"top": "0.46rem", "right": "0.4rem"},
+                            },
+                            {
+                                "name": "Submit",
+                                "feather": "Play",
+                                "primary": True,
+                                "hasText": True,
+                                "showWithIcon": True,
+                                "commands": ["submit"],
+                                "style": {"bottom": "0.44rem", "right": "0.4rem"},
+                            },
+                        ]
 
-                            response_dict = code_editor(
-                                chat["prompt"].replace("```yaml", ""),
-                                focus=True,
-                                theme="contrast",
-                                buttons=custom_btns,
+                        response_dict = code_editor(
+                            chat["prompt"].replace("```yaml", ""),
+                            # focus=True,
+                            theme="dark",
+                            buttons=custom_btns,
+                            key=index,
+                            options={"wrap": False},
+                        )
+
+                        if (
+                            response_dict["type"] == "submit"
+                            and len(response_dict["text"]) != 0
+                        ):
+                            upload_new_template(
+                                template=response_dict["text"],
+                                chat_history_index=index,
                             )
-
-                            if (
-                                response_dict["type"] == "submit"
-                                and len(response_dict["text"]) != 0
-                            ):
-                                upload_new_template(
-                                    template=response_dict["text"],
-                                    chat_history_index=index,
-                                )
                     else:
-                        col1.markdown(chat["prompt"], unsafe_allow_html=True)
+                        # with col1:
+                        custom_btns = [
+                            {
+                                "name": "Copy",
+                                "feather": "Copy",
+                                "hasText": True,
+                                "alwaysOn": True,
+                                "commands": [
+                                    "copyAll",
+                                    [
+                                        "infoMessage",
+                                        {
+                                            "text": "Copied to clipboard!",
+                                            "timeout": 2500,
+                                            "classToggle": "show",
+                                        },
+                                    ],
+                                ],
+                                # "style": {"top": "0.46rem", "right": "0.4rem"},
+                            }
+                        ]
 
-                    if col3.checkbox(
-                        "Trace", value=False, key=index, label_visibility="visible"
-                    ):
-                        col2.subheader("Trace")
-                        col2.markdown(chat["trace"])
+                        response_dict = code_editor(
+                            chat["prompt"].replace("```yaml", ""),
+                            # focus=True,
+                            theme="light",
+                            buttons=custom_btns,
+                            key=index,
+                            options={"wrap": False},
+                        )
+
+                        # col1.markdown(chat["prompt"], unsafe_allow_html=True)
+
                 else:
                     st.markdown(chat["prompt"])
 
@@ -229,15 +290,8 @@ if "user_edit_done" in st.session_state and "explain" in st.session_state:
         st.session_state["chat_history"] = list()
 
         with st.chat_message("assistant"):
-            col1, col2, col3 = st.columns((5, 3, 2))
-
-            if col3.checkbox(
-                "Trace",
-                value=True,
-                key=0,
-                label_visibility="visible",
-            ):
-                col2.subheader("Trace")
+            # col1, col2 = st.columns((5, 5))
+            col2 = st.container()
 
             _, trace_text = agent.invoke_agent(
                 text=st.session_state["explain"], trace=col2, instruction="generate"
@@ -246,11 +300,16 @@ if "user_edit_done" in st.session_state and "explain" in st.session_state:
                 sessionId=agent.get_session_id()
             )
 
+            is_valid = knowledgebase.get_generated_cloudformation(
+                sessionId=agent.get_session_id(), key="is_valid"
+            )
+
             st.session_state["chat_history"].append(
                 {
                     "role": "assistant",
                     "prompt": "```yaml" + response_text,
                     "trace": trace_text,
+                    "is_valid": is_valid,
                 }
             )
             st.rerun()
@@ -262,15 +321,8 @@ if "user_edit_done" in st.session_state and "explain" in st.session_state:
                 st.markdown(prompt)
 
             with st.chat_message("assistant"):
-                col1, col2, col3 = st.columns((5, 4, 1))
-
-                if col3.checkbox(
-                    "Trace",
-                    value=True,
-                    key=len(st.session_state["chat_history"]),
-                    label_visibility="visible",
-                ):
-                    col2.subheader("Trace")
+                # col1, col2 = st.columns((5, 5))
+                col2 = st.container()
 
                 _, trace_text = agent.invoke_agent(
                     text=prompt, trace=col2, instruction="update"
@@ -279,11 +331,16 @@ if "user_edit_done" in st.session_state and "explain" in st.session_state:
                     sessionId=agent.get_session_id()
                 )
 
+                is_valid = knowledgebase.get_generated_cloudformation(
+                    sessionId=agent.get_session_id(), key="is_valid"
+                )
+
                 st.session_state["chat_history"].append(
                     {
                         "role": "assistant",
                         "prompt": "```yaml" + response_text,
                         "trace": trace_text,
+                        "is_valid": is_valid,
                     }
                 )
 

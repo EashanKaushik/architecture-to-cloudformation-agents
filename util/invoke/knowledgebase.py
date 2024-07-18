@@ -136,7 +136,7 @@ class KnowledgeBase:
             Key={"sessionId": sessionId, "version": version}
         )
 
-    def get_generated_cloudformation(self, sessionId, version="v0"):
+    def get_generated_cloudformation(self, sessionId, version="v0", key="template"):
         """
         Retrieves the generated CloudFormation template from DynamoDB.
 
@@ -149,7 +149,7 @@ class KnowledgeBase:
         """
         return st.session_state["TEMPLATE_TABLE"].get_item(
             Key={"sessionId": sessionId, "version": version}
-        )["Item"]["template"]
+        )["Item"][key]
 
     def put_generated_cloudformation(self, sessionId, template):
         """
@@ -177,11 +177,12 @@ class KnowledgeBase:
             response = st.session_state["TEMPLATE_TABLE"].update_item(
                 Key={"sessionId": sessionId, "version": "v0"},
                 # Atomic counter is used to increment the latest version
-                UpdateExpression="SET Latest = if_not_exists(Latest, :defaultval) + :incrval, #creationDate = :creationDate, #template = :template, #ttl = :ttl",
+                UpdateExpression="SET Latest = if_not_exists(Latest, :defaultval) + :incrval, #creationDate = :creationDate, #template = :template, #ttl = :ttl, #is_valud = :is_valid",
                 ExpressionAttributeNames={
                     "#creationDate": "creationDate",
                     "#template": "template",
                     "#ttl": "ttl",
+                    "#is_valud": "is_valid",
                 },
                 ExpressionAttributeValues={
                     ":creationDate": creationDate,
@@ -189,6 +190,7 @@ class KnowledgeBase:
                     ":ttl": ttl,
                     ":defaultval": 0,
                     ":incrval": 1,
+                    ":is_valid": None,
                 },
                 # return the affected attribute after the update
                 ReturnValues="UPDATED_NEW",
@@ -239,88 +241,6 @@ class KnowledgeBase:
         metadata = [v for k, v in relevant_documents.items() if "document" in k]
 
         return metadata
-
-    def get_summary_document(self, explain):
-        """
-        Generating an explanation with less than 1000 characters to accommodate thecharacter limit for the knowledge base query.
-
-        Args:
-            explain (str): Current architecture explanation recieved from the streamlit app.
-
-        Returns:
-            str: New architecture explanation with less than 1000 characters.
-        """
-        _system_prompt = """
-            Summarize document in no more than 1000 characters. 
-        """
-        _prompt = f"""
-            Summarize the document.
-
-            <document>
-            {explain}
-            </document>
-
-        """
-        _messages = [{"role": "user", "content": [{"type": "text", "text": _prompt}]}]
-
-        return backoff_mechanism(
-            func=invoke_model,
-            modelId="anthropic.claude-3-haiku-20240307-v1:0",
-            system_prompt=_system_prompt,
-            messages=_messages,
-        )
-
-    def retrieve_relevant_documents(self, sessionId, query):
-        """
-        Retrieves relevant documents from the knowledge base.
-
-        Args:
-            sessionId (str): The ID of the session.
-            query (str): The query to search for relevant documents.
-
-        Returns:
-            dict: The relevant documents.
-        """
-        creationDate = str(
-            int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
-        )
-        ttl = str(
-            int((datetime.datetime.now() + datetime.timedelta(seconds=900)).timestamp())
-        )
-
-        relevant_documents = st.session_state["AGENT_RUNTIME_CLIENT"].retrieve(
-            retrievalQuery={"text": self.get_summary_document(query)},
-            knowledgeBaseId=self.KnowledgeBaseId,
-            retrievalConfiguration={
-                "vectorSearchConfiguration": {
-                    "numberOfResults": 3,
-                    "overrideSearchType": "HYBRID",
-                }
-            },
-        )
-
-        for idx, metadata in enumerate(
-            [result["metadata"] for result in relevant_documents["retrievalResults"]]
-        ):
-
-            response = st.session_state["TEMPLATE_TABLE"].update_item(
-                Key={"sessionId": sessionId, "version": "METADATA"},
-                UpdateExpression=f"SET #document{idx} = :document{idx}, #creationDate = :creationDate, #ttl = :ttl, #query = :query",
-                ExpressionAttributeNames={
-                    f"#document{idx}": f"document{idx}",
-                    "#creationDate": "creationDate",
-                    "#ttl": "ttl",
-                    "#query": "query",
-                },
-                ExpressionAttributeValues={
-                    f":document{idx}": metadata,
-                    ":creationDate": creationDate,
-                    ":ttl": ttl,
-                    ":query": query,
-                },
-                ReturnValues="ALL_NEW",
-            )
-        return response["Attributes"]
 
     def new_session(self):
         """
