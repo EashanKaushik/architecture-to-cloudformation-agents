@@ -1,5 +1,23 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Basic VPC Infrastructure
+Description: 
+  This CloudFormation template creates a Virtual Private Cloud (VPC) with two public subnets and two private subnets across two Availability Zones (AZs). It also sets up an Internet Gateway, NAT Gateways, Route Tables, and other necessary resources for a secure and highly available network infrastructure.
+
+  Here's a breakdown of the key components
+
+  1. VPC- A VPC is created with the specified CIDR block, DNS support, and DNS hostnames enabled. Additionally, a VPC Flow Log is configured to capture network traffic logs.
+
+  2. Internet Gateway- An Internet Gateway is created and attached to the VPC, enabling internet access for resources in the public subnets.
+
+  3. Subnets- Two public subnets and two private subnets are created, each in a different Availability Zone. The public subnets have direct internet access via the Internet Gateway, while the private subnets have internet access through NAT Gateways.
+
+  4. NAT Gateways- Two NAT Gateways are created, one in each public subnet, to enable internet access for resources in the private subnets.
+
+  5. Route Tables- Two route tables are created, one for the public subnets and one for the private subnets. The public route table has a default route to the Internet Gateway, while the private route tables have default routes to the respective NAT Gateways.
+
+  6. Route Table Associations- The public subnets are associated with the public route table, and the private subnets are associated with their respective private route tables.
+
+
+  This template provides a robust and scalable network infrastructure with separate public and private subnets, enabling secure communication between resources in the private subnets and the internet through NAT Gateways. It also includes VPC Flow Logs for monitoring and troubleshooting network traffic.
 Metadata:
   'AWS::CloudFormation::Interface':
     ParameterGroups:
