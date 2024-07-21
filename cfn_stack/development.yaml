@@ -1,37 +1,21 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: |
-  This CloudFormation template is designed to create an end-to-end architecture for Architecture to CloudFormation application with following components:
-
-  1. Logging and Monitoring
-    - Creates an S3 bucket for storing logs from various services, including Application Load Balancer (ALB) access logs and CloudFront distribution logs.
-
-  2. Networking
-    - Creates security groups for the ALB and the ECS containers, allowing necessary inbound and outbound traffic.
-
-  3. Load Balancing and Content Delivery
-    - Creates an Application Load Balancer (ALB) and a listener rule to forward traffic to the ECS service.
-    - Creates a CloudFront distribution to serve content from the ALB.
-
-  4. Data Storage
-    - Creates a DynamoDB table for storing session data and templates.
-    - Creates an S3 bucket for storing data sources (e.g., CloudFormation templates) to be ingested into the knowledge base.
-
-  5. ECS Cluster and Service
-    - Creates an ECS cluster and an ECS service to run the application containers.
-    - Configures the ECS task definition with the required CPU, memory, and container port settings.
-    - Sets up an ECR repository to store the Docker image for the application.
-    - Configures a CodeBuild project to build and push the Docker image to the ECR repository.
-    - Configures Auto Scaling for the ECS service based on CPU utilization.
-
-  6. Custom Resources
-    - Includes several custom resources implemented as Lambda functions to handle various initialization and cleanup tasks, such as starting CodeBuild projects, cleaning up S3 buckets, and creating required IAM roles.
-
-  7. Nested Stacks
-    - OpenSearch Serverless stack
-    - Agents stack
-    - Knowledge Base stack
-    - Parameter stack
-
+    1. Creates an S3 bucket for storing logs from various services.
+    2. Creates security groups for the ALB and the ECS containers.
+    3. Creates an Application Load Balancer (ALB) and a listener rule to forward traffic to the ECS service.
+    4. Creates a CloudFront distribution to serve content from the ALB.
+    5. Creates a DynamoDB table for storing session data and templates.
+    6. Creates an S3 bucket for storing data sources.
+    7. Creates an ECS cluster and an ECS service to run the application containers.
+    8. Configures the ECS task definition with the required CPU, memory, and container port settings.
+    9. Sets up an ECR repository to store the Docker image for the application.
+    10. Configures a CodeBuild project to build and push the Docker image to the ECR repository.
+    11. Configures Auto Scaling for the ECS service based on CPU utilization.
+    12. Includes several custom resources implemented as Lambda functions.
+    13. OpenSearch Serverless nested stack
+    14. Agents nested stack
+    15. Knowledge Base nested stack
+    16. Parameter nested stack
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -218,6 +202,7 @@ Resources:
         KnowledgeBaseServiceRoleArn: !GetAtt AossVectorDBStack.Outputs.KnowledgeBaseServiceRoleArn
         AOSSCollectionArn: !GetAtt AossVectorDBStack.Outputs.AOSSCollectionArn
         LogsPolicyPolicyArn: !GetAtt LogsPolicy.PolicyArn
+        GitURL: !Ref GitURL
 
   AgentStack:
     Type: AWS::CloudFormation::Stack
@@ -924,7 +909,6 @@ Resources:
     DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/codebuild/${ArtifactCodeBuild}
       RetentionInDays: 7
 
   ###################################
@@ -1020,7 +1004,6 @@ Resources:
     DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/codebuild/${StreamlitCodeBuild}
       RetentionInDays: 7
 
   #######################################

@@ -7,6 +7,7 @@ Metadata:
           default: Environment Configuration
         Parameters:
           - EnvironmentName
+          - GitURL
       - Label:
           default: Knowledge base Configuration
         Parameters:
@@ -22,6 +23,10 @@ Parameters:
     Type: String
     Description: The ARN of the knowledge base service role
   
+  GitURL:
+    Type: String
+    Description: Initial repository for web application
+
   LogsPolicyPolicyArn:
     Description: Policy ARN for writing logs
     Type: String

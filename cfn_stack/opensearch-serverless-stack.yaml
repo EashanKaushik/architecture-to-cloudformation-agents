@@ -282,7 +282,7 @@ Resources:
         - - ECSCustomF
           - !Ref EnvironmentName
       Handler: index.handler
-      Role: !GetAtt StreamlitECSRoleCustomResourceRole.Arn
+      Role: !GetAtt AossCodeBuildCustomResourceRole.Arn
       Timeout: 300
       Runtime: python3.12
       Code:
