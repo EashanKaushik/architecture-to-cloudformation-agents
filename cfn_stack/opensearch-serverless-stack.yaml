@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-
+Description: This CloudFormation template sets up an Amazon OpenSearch serverless index with appropriate access policies. 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:

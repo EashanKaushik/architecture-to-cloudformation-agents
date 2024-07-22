@@ -33,7 +33,8 @@ class BedrockAgent:
         if "AGENT_RUNTIME_CLIENT" not in st.session_state:
 
             st.session_state["AGENT_RUNTIME_CLIENT"] = Session().client(
-                "bedrock-agent-runtime", config=Config(read_timeout=600, connect_timeout=600)
+                "bedrock-agent-runtime",
+                config=Config(read_timeout=600, connect_timeout=600),
             )
 
         if "SESSION_ID" not in st.session_state:

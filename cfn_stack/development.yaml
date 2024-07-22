@@ -1,21 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: |
-    1. Creates an S3 bucket for storing logs from various services.
-    2. Creates security groups for the ALB and the ECS containers.
-    3. Creates an Application Load Balancer (ALB) and a listener rule to forward traffic to the ECS service.
-    4. Creates a CloudFront distribution to serve content from the ALB.
-    5. Creates a DynamoDB table for storing session data and templates.
-    6. Creates an S3 bucket for storing data sources.
-    7. Creates an ECS cluster and an ECS service to run the application containers.
-    8. Configures the ECS task definition with the required CPU, memory, and container port settings.
-    9. Sets up an ECR repository to store the Docker image for the application.
-    10. Configures a CodeBuild project to build and push the Docker image to the ECR repository.
-    11. Configures Auto Scaling for the ECS service based on CPU utilization.
-    12. Includes several custom resources implemented as Lambda functions.
-    13. OpenSearch Serverless nested stack
-    14. Agents nested stack
-    15. Knowledge Base nested stack
-    16. Parameter nested stack
+Description: This CloudFormation template sets up an AWS infrastructure for a Streamlit application. It creates nested stacks for Amazon OpenSearch Serverless, Knowledge base for Amazon Bedrock, Agents for Amazon Bedrock, and SSM parameters. It also configures an ALB, CloudFront, ECS cluster, CodeBuild projects, DynamoDB table, necessary IAM roles and policies, and custom resources for required configurations. 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -183,7 +167,6 @@ Resources:
   AossVectorDBStack:
     Type: AWS::CloudFormation::Stack
     DependsOn: InitializeBuildCustomResource
-    DeletionPolicy: Retain
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/datasource${AWS::AccountId}-${EnvironmentName}/cfn_stack/opensearch-serverless-stack.yaml'
       Parameters:
@@ -194,11 +177,10 @@ Resources:
   
   KBStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/datasource${AWS::AccountId}-${EnvironmentName}/cfn_stack/kb-stack.yaml'
       Parameters:
-        EnvironmentNames: !Ref EnvironmentName
+        EnvironmentName: !Ref EnvironmentName
         KnowledgeBaseServiceRoleArn: !GetAtt AossVectorDBStack.Outputs.KnowledgeBaseServiceRoleArn
         AOSSCollectionArn: !GetAtt AossVectorDBStack.Outputs.AOSSCollectionArn
         LogsPolicyPolicyArn: !GetAtt LogsPolicy.PolicyArn
@@ -206,7 +188,6 @@ Resources:
 
   AgentStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/datasource${AWS::AccountId}-${EnvironmentName}/cfn_stack/agents-stack.yaml'
       Parameters:
@@ -218,7 +199,6 @@ Resources:
 
   ParameterStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Delete
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/datasource${AWS::AccountId}-${EnvironmentName}/cfn_stack/parameter-stack.yaml'
       Parameters:
@@ -677,7 +657,7 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource:
-                  - arn:aws:bedrock:us-east-1::foundation-model/${BedrockModelId}
+                  - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}
         - PolicyName: BedrockAgentAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'

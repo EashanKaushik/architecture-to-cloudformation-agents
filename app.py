@@ -71,7 +71,7 @@ with heading_button_left:
 
         if "metadata_uri" in st.session_state:
             del st.session_state["metadata_uri"]
-        
+
         if "user_edit_done" in st.session_state:
             del st.session_state["user_edit_done"]
 

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-
+Description: This CloudFormation template sets up an Agent for Amazon Bedrock.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:

@@ -29,7 +29,9 @@ EnvironmentName = os.environ["EnvironmentName"]
 summary_modelId = "anthropic.claude-3-haiku-20240307-v1:0"
 generate_modeId = "anthropic.claude-3-sonnet-20240229-v1:0"
 
-bedrock = Session().client("bedrock-runtime", config=Config(read_timeout=600, connect_timeout=600))
+bedrock = Session().client(
+    "bedrock-runtime", config=Config(read_timeout=600, connect_timeout=600)
+)
 cfn = Session().client("cloudformation")
 bedrock_agent = Session().client("bedrock-agent-runtime")
 s3 = Session().client("s3")
@@ -56,7 +58,7 @@ def invoke_model(modelId, system_prompt, messages):
         modelId=modelId,
         messages=messages,
         system=[{"text": system_prompt}],
-        inferenceConfig={"temperature": 0.0, "maxTokens": 4000},
+        inferenceConfig={"temperature": 0.2, "maxTokens": 4000},
     )
     return response["output"]["message"]["content"][0]["text"]
 
@@ -348,41 +350,6 @@ def retrieve_yaml(sessionId, query=None):
 #############################
 
 
-# def get_new_architecture_explaination(architectureExplanation, updateInstruction):
-#     """
-#     Generating new architecture explaination integration update instruction.
-
-#      Args:
-#          architectureExplanation (str): Current architecture explanation.
-#          updateInstruction (str): Update instruction to update current CloudFormation template.
-
-#      Returns:
-#          str: New architecture explanation.
-#     """
-
-#     _system_prompt = """
-#         List all the AWS Services in the document. Do output anything else.
-#     """
-#     _prompt = f"""
-#         <para1>
-#         {architectureExplanation}
-#         </para1>
-
-#         <para2>
-#         {updateInstruction}
-#         </para2>
-#     """
-
-#     _messages = [{"role": "user", "content": [{"text": _prompt}]}]
-#     # func, modelId, system_prompt, messages
-#     return backoff_mechanism(
-#         func=invoke_model,
-#         modelId=summary_modelId,
-#         system_prompt=_system_prompt,
-#         messages=_messages,
-#     )
-
-
 def get_summary_document(explain):
     """
     Generating an explanation with less than 1000 characters to accommodate the character limit for the knowledge base query.
@@ -637,18 +604,6 @@ def update_cloudformation(updateInstruction, sessionId):
     try:
 
         cloudformationTemplate = get_generated_cloudformation(sessionId=sessionId)
-        # table.delete_item(
-        #     Key={
-        #         "sessionId": sessionId,
-        #         "version": "METADATA",
-        #     },
-        # )
-        # newArchitectureExplanation = get_new_architecture_explaination(
-        #     architectureExplanation, updateInstruction
-        # )
-
-        # if not newArchitectureExplanation:
-        #     return False, "Could not generate new architecture explanation"
 
         documents = retrieve_yaml(sessionId=sessionId, query=None)
 
@@ -860,18 +815,8 @@ def lambda_handler(event, context):
             valid, result = validate_cloudformtaion(sessionId=event["sessionId"])
 
         elif api_path == "/reiterateCloudFormation":
-            # for param in parameters:
-            #     if param["name"] == "architectureExplanation":
-            #         architectureExplanation = param["value"]
 
-            # if not architectureExplanation:
-            #     valid, result = (
-            #         False,
-            #         "Missing mandatory parameter: architectureExplanation",
-            #     )
-            # else:
             valid, result = reiterate_cloudformation(
-                # architectureExplanation=architectureExplanation,
                 sessionId=event["sessionId"],
             )
 
@@ -880,34 +825,19 @@ def lambda_handler(event, context):
             for param in parameters:
                 if param["name"] == "updateInstruction":
                     updateInstruction = param["value"]
-                # if param["name"] == "architectureExplanation":
-                #     architectureExplanation = param["value"]
 
-            # if not architectureExplanation:
-            #     valid, result = (
-            #         False,
-            #         "Missing mandatory parameter: architectureExplanation",
-            #     )
             if not updateInstruction:
                 valid, result = False, "Missing mandatory parameter: updateInstruction"
             else:
                 valid, result = update_cloudformation(
                     updateInstruction=updateInstruction,
-                    # architectureExplanation=architectureExplanation,
                     sessionId=event["sessionId"],
                 )
         elif api_path == "/resolveCloudFormation":
             for param in parameters:
                 if param["name"] == "cloudformationInstruction":
                     cloudformationInstruction = param["value"]
-                # if param["name"] == "architectureExplanation":
-                #     architectureExplanation = param["value"]
 
-            # if not architectureExplanation:
-            #     valid, result = (
-            #         False,
-            #         "Missing mandatory parameter: architectureExplanation",
-            #     )
             if not cloudformationInstruction:
                 valid, result = (
                     False,
@@ -916,7 +846,6 @@ def lambda_handler(event, context):
             else:
                 valid, result = resolve_cloudformation(
                     cloudformationInstruction=cloudformationInstruction,
-                    # architectureExplanation=architectureExplanation,
                     sessionId=event["sessionId"],
                 )
         else:

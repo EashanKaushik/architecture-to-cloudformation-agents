@@ -1,4 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
+Description: This CloudFormation template sets up a Knowledge base for Amazon Bedrock. Knowledge base is also initialized with mock data.
 
 Metadata:
   AWS::CloudFormation::Interface:
