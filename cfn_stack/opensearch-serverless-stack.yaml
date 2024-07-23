@@ -133,7 +133,6 @@ Resources:
         - collection: !Sub aoss${EnvironmentName}
 
   AOSSCollectionAccessPolicy:
-    DeletionPolicy: Retain
     Type: AWS::OpenSearchServerless::AccessPolicy
     Properties:
       Name: !Sub aoss-access-policy-${EnvironmentName}
@@ -236,7 +235,6 @@ Resources:
     DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/codebuild/${AossCodeBuild}
       RetentionInDays: 7
 
   ##########################################

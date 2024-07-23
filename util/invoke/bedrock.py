@@ -4,13 +4,9 @@ from botocore.config import Config
 
 import streamlit as st
 
-from jinja2 import Environment, select_autoescape, FileSystemLoader
-
 import time
 import random
-import base64
 import uuid
-import os
 
 
 def invoke_model(modelId, inference_params, messages, system_prompt, data_placeholder):
@@ -111,20 +107,21 @@ class Bedrock:
     """
 
     def __init__(self, inference_params):
-        jinja = Environment(
-            loader=FileSystemLoader(os.path.join("util", "prompt_templates")),
-            autoescape=select_autoescape(
-                enabled_extensions=("jinja"),
-                disabled_extensions=("txt",),
-                default_for_string=True,
-                default=True,
-            ),
-        )
+
         self._inference_params = inference_params
 
-        self._explain_prompt = jinja.get_template("explain_prompt.txt.jinja")
+        self._explain_prompt = """
+        You are an AWS Certified Solutions Architect with extensive experience in interpreting and explaining AWS Architecture diagrams.
 
-        self._sys_explain_prompt = jinja.get_template("sys_explain_prompt.txt.jinja")
+        When describing the architecture, follow these guidelines:
+
+        1. Identify and list the main components and AWS services depicted in the diagram.
+        2. Explain the flow of data and requests through the architecture, starting from the client or user interface and tracing the path through various components. Highlight each service responsibility and how it contributes to the overall system.
+
+        Do not provide summary.
+        """
+
+        self._sys_explain_prompt ="Your goal is to provide a list of AWS services and a concise and easily understandable data flow of the AWS Architecture diagram. Skip the preamble."
 
     def get_explain_messages(self, image, image_type):
         """

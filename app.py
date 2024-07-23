@@ -2,7 +2,6 @@ import streamlit as st
 from code_editor import code_editor
 
 from argparse import ArgumentParser
-import json
 
 from util.invoke import Bedrock, BedrockAgent, KnowledgeBase
 from util.assets import download_button, read_image, download_cfn

@@ -1,10 +1,7 @@
-import streamlit as st
-
 import pandas as pd
 
 import base64
 import json
-import pickle
 import uuid
 import re
 
@@ -35,11 +32,7 @@ def download_button(
 
     """
     if pickle_it:
-        try:
-            object_to_download = pickle.dumps(object_to_download)
-        except pickle.PicklingError as e:
-            st.write(e)
-            return None
+        object_to_download = json.dumps(object_to_download)
 
     else:
         if isinstance(object_to_download, bytes):

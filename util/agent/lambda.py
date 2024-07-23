@@ -26,8 +26,7 @@ import datetime
 
 KnowledgeBaseId = os.environ["KnowledgeBaseId"]
 EnvironmentName = os.environ["EnvironmentName"]
-summary_modelId = "anthropic.claude-3-haiku-20240307-v1:0"
-generate_modeId = "anthropic.claude-3-sonnet-20240229-v1:0"
+BedrockModelId = os.environ["BedrockModelId"]
 
 bedrock = Session().client(
     "bedrock-runtime", config=Config(read_timeout=600, connect_timeout=600)
@@ -373,7 +372,7 @@ def get_summary_document(explain):
     # func, modelId, system_prompt, messages
     return backoff_mechanism(
         func=invoke_model,
-        modelId=summary_modelId,
+        modelId=BedrockModelId,
         system_prompt=_system_prompt,
         messages=_messages,
     )
@@ -445,7 +444,7 @@ def generate_cloudformation(architectureExplanation, sessionId):
         # func, modelId, system_prompt, messages
         generated_cloudformation_stack = backoff_mechanism(
             func=invoke_model,
-            modelId=generate_modeId,
+            modelId=BedrockModelId,
             system_prompt=_system_prompt,
             messages=_messages,
         )
@@ -571,7 +570,7 @@ def reiterate_cloudformation(sessionId):
 
         updated_cloudformation = backoff_mechanism(
             func=invoke_model,
-            modelId=generate_modeId,
+            modelId=BedrockModelId,
             system_prompt=_system_prompt,
             messages=_messages,
         )
@@ -660,7 +659,7 @@ def update_cloudformation(updateInstruction, sessionId):
 
         updated_cloudformation = backoff_mechanism(
             func=invoke_model,
-            modelId=generate_modeId,
+            modelId=BedrockModelId,
             system_prompt=_system_prompt,
             messages=_messages,
         )
@@ -754,7 +753,7 @@ def resolve_cloudformation(cloudformationInstruction, sessionId):
 
         updated_cloudformation = backoff_mechanism(
             func=invoke_model,
-            modelId=generate_modeId,
+            modelId=BedrockModelId,
             system_prompt=_system_prompt,
             messages=_messages,
         )

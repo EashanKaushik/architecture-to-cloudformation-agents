@@ -2,5 +2,4 @@ streamlit
 boto3
 botocore
 black
-Jinja2
 streamlit-code-editor

@@ -176,7 +176,6 @@ Resources:
     DeletionPolicy: Retain
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/codebuild/${DataCodeBuild}
       RetentionInDays: 7
 
   #######################################

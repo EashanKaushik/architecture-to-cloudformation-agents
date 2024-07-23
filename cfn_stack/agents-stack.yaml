@@ -131,6 +131,7 @@ Resources:
         Variables:
           EnvironmentName: !Ref EnvironmentName
           KnowledgeBaseId: !Ref KnowledgeBaseId
+          BedrockModelId: !Ref BedrockModelId
       Code:
         S3Bucket: !Sub datasource${AWS::AccountId}-${EnvironmentName}
         S3Key: agent/lambda.zip
