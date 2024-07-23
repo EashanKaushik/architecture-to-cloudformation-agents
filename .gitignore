@@ -119,3 +119,4 @@ temp.*
 *.mov
 ash_output/*
 *.xlsx
+cfn_nag/*
