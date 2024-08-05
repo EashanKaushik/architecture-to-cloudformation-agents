@@ -120,3 +120,5 @@ temp.*
 ash_output/*
 *.xlsx
 cfn_nag/*
+code.zip
+lambda/
