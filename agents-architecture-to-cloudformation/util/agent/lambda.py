@@ -1,8 +1,6 @@
 import sys
 from pip._internal import main
 
-from util.prompt_templates import generateCloudFormationPrompt, reiterateCloudFormationPrompt, resolveErrorPrompt, updateInstructionPrompt, sys_generateCloudFormationPrompt, sys_reiterateCloudFormationPrompt, sys_resolveErrorPrompt, sys_updateInstructionPrompt
-
 main(
     [
         "install",
@@ -20,6 +18,8 @@ sys.path.insert(0, "/tmp/")
 from botocore.exceptions import ClientError, ValidationError
 from boto3.session import Session
 from botocore.config import Config
+
+import generateCloudFormationPrompt, reiterateCloudFormationPrompt, resolveErrorPrompt, updateInstructionPrompt, sys_generateCloudFormationPrompt, sys_reiterateCloudFormationPrompt, sys_resolveErrorPrompt, sys_updateInstructionPrompt
 
 import random
 import time

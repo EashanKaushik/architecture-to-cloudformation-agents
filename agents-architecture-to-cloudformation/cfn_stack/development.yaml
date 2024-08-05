@@ -44,7 +44,7 @@ Parameters:
     MaxLength: 4
 
   UserRoleArn:
-    Description: IAM Role ARN of the user allowed to access Amazon OpenSearch Serverless Collection
+    Description: IAM Role ARN of the user allowed to access Amazon OpenSearch Serverless Collection arn:aws:iam::{AccountId}:role/{roleName}
     Type: String
     MinLength: 1
 
@@ -857,18 +857,20 @@ Resources:
               build:
                 commands:
                   - echo Build started on `date`
-                  - sudo yum install -y p7zip
               post_build:
                 commands:
-                  - echo Build completed on `date`
                   - cd agents-architecture-to-cloudformation/
                   - aws s3 cp --recursive util/agent s3://${DataBucket}/agent
                   - aws s3 cp --recursive cfn_stack s3://${DataBucket}/cfn_stack
                   - mkdir lambda
-                  - cp -r util/prompt_templates lambda/
-                  - cp util/agent/lambda.py lambda/
-                  - 7z a lambda.zip ./lambda/{*,.[!.]*}
-                  - aws s3 cp lambda/lambda.zip s3://${DataBucket}/agent/lambda.zip
+                  - cp -r util/prompt_templates prompt_templates/
+                  - cd prompt_templates
+                  - zip -r ../lambda.zip .
+                  - cd ..
+                  - cp util/agent/lambda.py lambda.py
+                  - zip lambda.zip lambda.py
+                  - aws s3 cp lambda.zip s3://${DataBucket}/agent/lambda.zip
+                  - echo Build completed on `date`
           - DataBucket: !Sub datasource${AWS::AccountId}-${EnvironmentName}
       Environment:
         Type: LINUX_CONTAINER
