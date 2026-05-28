@@ -2,9 +2,18 @@ import streamlit as st
 from code_editor import code_editor
 
 from argparse import ArgumentParser
+import sys
+import os
+
+# Add logging configuration
+from logging_config import setup_logging, get_logger
 
 from util.invoke import Bedrock, BedrockAgent, KnowledgeBase
 from util.assets import download_button, read_image, download_cfn
+
+# Setup logging
+setup_logging(log_level=os.getenv("LOG_LEVEL", "INFO"))
+logger = get_logger(__name__)
 
 parser = ArgumentParser()
 parser.add_argument("--environmentName", type=str, default=None)
@@ -14,6 +23,18 @@ args = parser.parse_args()
 
 environmentName = args.environmentName
 GitURL = args.GitURL
+
+# Validate required arguments
+if not environmentName:
+    logger.error("Missing required argument: --environmentName")
+    st.error("Error: --environmentName is required. Please provide the environment name.")
+    sys.exit(1)
+
+if not GitURL:
+    logger.warning("No GitURL provided, GitHub link will not be displayed")
+    GitURL = "#"
+
+logger.info(f"Starting application for environment: {environmentName}")
 
 st.set_page_config(
     page_title="AWS",
@@ -28,11 +49,17 @@ Temperature = st.sidebar.slider(
 Top_P = st.sidebar.slider("Top P", min_value=0.0, max_value=1.0, step=0.001, value=1.0)
 Top_K = st.sidebar.slider("Top K", min_value=0, max_value=500, step=1, value=250)
 
-bedrock = Bedrock(
-    inference_params={"temperature": Temperature, "top_p": Top_P, "top_k": Top_K}
-)
-agent = BedrockAgent(environmentName=environmentName)
-knowledgebase = KnowledgeBase(environmentName=environmentName)
+try:
+    bedrock = Bedrock(
+        inference_params={"temperature": Temperature, "top_p": Top_P, "top_k": Top_K}
+    )
+    agent = BedrockAgent(environmentName=environmentName)
+    knowledgebase = KnowledgeBase(environmentName=environmentName)
+    logger.info("Successfully initialized Bedrock services")
+except Exception as e:
+    logger.error(f"Failed to initialize Bedrock services: {e}")
+    st.error(f"Failed to initialize AWS services. Please check your configuration: {e}")
+    sys.exit(1)
 
 st.sidebar.subheader("Session ID")
 st.sidebar.code(agent.get_session_id())
