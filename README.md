@@ -1,5 +1,7 @@
 # architecture-to-cloudformation-agents
 
+*Production-grade infrastructure as code, simplified.*
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
@@ -7,15 +9,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This library is licensed under the MIT-0 License. See the LICENSE file.
-
-## Usage
-
-```
-streamlit run app.py --server.port=<port> -- --environmentName <environmentName> --GitURL https://github.com/EashanKaushik/architecture-to-cloudformation-agents.git
-```
-
-## Cleanup
-
-developmeny.yaml
-aoss-access-policy-${EnvironmentName}
-infrastructure.yaml
