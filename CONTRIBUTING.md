@@ -35,9 +35,22 @@ To send us a pull request, please:
 4. Commit to your fork using clear commit messages.
 5. Send us a pull request, answering any default questions in the pull request interface.
 6. Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation.
+7. If your change spans more than one component, link to [docs/architecture.md](docs/architecture.md) in your PR description and call out which sections (Overview, Components, Data Flow, Deployment) are affected.
 
 GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
+
+
+## Architecture review
+
+When a pull request changes more than one component (for example, the
+Streamlit frontend together with the Bedrock Agent action-group Lambda, or
+the Knowledge Base together with the CloudFormation stacks under
+`cfn_stack/`), reviewers should first read
+[docs/architecture.md](docs/architecture.md) and confirm that the change
+is consistent with the documented Overview, Components, Data Flow, and
+Deployment sections. If the change alters any of those, the same PR should
+update `docs/architecture.md` accordingly.
 
 
 ## Finding contributions to work on
