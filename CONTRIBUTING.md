@@ -43,14 +43,7 @@ GitHub provides additional document on [forking a repository](https://help.githu
 
 ## Architecture review
 
-When a pull request changes more than one component (for example, the
-Streamlit frontend together with the Bedrock Agent action-group Lambda, or
-the Knowledge Base together with the CloudFormation stacks under
-`cfn_stack/`), reviewers should first read
-[docs/architecture.md](docs/architecture.md) and confirm that the change
-is consistent with the documented Overview, Components, Data Flow, and
-Deployment sections. If the change alters any of those, the same PR should
-update `docs/architecture.md` accordingly.
+When a pull request changes more than one component (for example, the Streamlit frontend together with the Bedrock Agent action-group Lambda, or the Knowledge Base together with the CloudFormation stacks under `cfn_stack/`), reviewers should first read [docs/architecture.md](docs/architecture.md) and confirm that the change is consistent with the documented Overview, Components, Data Flow, and Deployment sections. If the change alters any of those, the same PR should update `docs/architecture.md` accordingly.
 
 
 ## Finding contributions to work on

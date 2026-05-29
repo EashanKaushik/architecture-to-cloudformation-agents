@@ -16,8 +16,7 @@ streamlit run app.py --server.port=<port> -- --environmentName <environmentName>
 
 ## Architecture
 
-For a high-level overview of the system — components, data flow, and
-deployment — see [docs/architecture.md](docs/architecture.md).
+For a high-level overview of the system — components, data flow, and deployment — see [docs/architecture.md](docs/architecture.md).
 
 ## Cleanup
 
