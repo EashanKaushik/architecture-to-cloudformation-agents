@@ -1,5 +1,7 @@
 # architecture-to-cloudformation-agents
 
+*Diagrams to deployable infrastructure, in one click.*
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
